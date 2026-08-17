@@ -87,7 +87,7 @@ docker compose up -d
 ```yaml
 services:
   downloader:
-    image: jinqians/fetchkeep:1.0.0
+    image: jinqians/fetchkeep:1.0.1
     container_name: fetchkeep-lite
     restart: unless-stopped
     ports:
@@ -139,7 +139,7 @@ services:
 git clone https://github.com/jinqians/FetchKeep.git
 cd FetchKeep
 cp .env.example .env
-echo 'FETCHKEEP_IMAGE=jinqians/fetchkeep:1.0.0' >> .env
+echo 'FETCHKEEP_IMAGE=jinqians/fetchkeep:1.0.1' >> .env
 nano .env                                    # 其余配置全部可选，不改也能跑
 docker compose pull && docker compose up -d
 ```
@@ -170,7 +170,7 @@ docker run -d --name fetchkeep-lite --restart unless-stopped \
   -e SOURCE_URL=https://github.com/jinqians/FetchKeep \
   -e MAX_WORKERS=2 \
   -e JOB_RETENTION_HOURS=24 \
-  jinqians/fetchkeep:1.0.0
+  jinqians/fetchkeep:1.0.1
 ```
 
 后台、代理、Cookies 同理，按需追加 `-e`（变量名见[完整环境变量](#完整环境变量)；
@@ -202,7 +202,7 @@ docker run -d --name fetchkeep-lite --restart unless-stopped \
   -v "$PWD/data:/data" \
   -e SOURCE_URL=https://github.com/jinqians/FetchKeep \
   -e DOUYIN_PARSER_URL=http://douyin-parser:8000 \
-  jinqians/fetchkeep:1.0.0
+  jinqians/fetchkeep:1.0.1
 ```
 
 升级也得手动：`docker pull` 新镜像 → `docker rm -f` 旧容器 → 把上面那串参数

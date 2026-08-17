@@ -211,6 +211,14 @@
 }
 .footer-inner strong{font-size:14px}
 .footer-inner span{margin-left:9px;color:var(--muted-2);font-size:12px}
+/* The §13 source link is injected by renderSourceLink(), so it arrives as a
+   bare <a> with no class of its own — without this it renders as a default
+   blue underlined link next to otherwise muted footer text. */
+.footer-inner a{
+  color:inherit;font-weight:600;text-decoration:none;
+  border-bottom:1px solid var(--line);
+}
+.footer-inner a:hover{color:#111827;border-bottom-color:#111827}
 .footer-note{margin:0;max-width:520px;color:var(--muted-2);font-size:11.5px;line-height:1.7}
 /* Separated from the licence/disclaimer row above it: attribution to upstream
    is a different claim than what this deployment tells you about itself. */
