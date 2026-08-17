@@ -1,0 +1,8 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.34,<1
+python-multipart>=0.0.20,<1
+yt-dlp
+gallery-dl
+
+curl-cffi>=0.11
+requests[socks]

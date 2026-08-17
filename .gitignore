@@ -1,0 +1,8 @@
+.env
+data/cookies/*
+!data/cookies/.gitkeep
+data/downloads/*
+!data/downloads/.gitkeep
+__pycache__/
+*.pyc
+.DS_Store

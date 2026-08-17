@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#111827">
+<title>管理后台 · FetchKeep Lite</title>
+<link rel="icon" href="/static/icons/favicon.svg?v=lite8" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icons/favicon.svg?v=lite8">
+<link rel="stylesheet" href="/static/css/style.css?v=lite8">
+<style>
+.console{display:grid;grid-template-columns:190px 1fr;gap:24px;align-items:start}
+.console-nav{
+  position:sticky;top:94px;display:flex;flex-direction:column;gap:2px;
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;
+}
+.console-nav .nav-group{
+  padding:10px 10px 5px;color:var(--muted-2);
+  font-size:10px;font-weight:800;letter-spacing:.08em;
+}
+.console-nav a{
+  display:flex;align-items:center;justify-content:space-between;gap:6px;
+  padding:9px 10px;border-radius:9px;color:#4b5563;
+  text-decoration:none;font-size:12px;font-weight:600;
+}
+.console-nav a:hover{background:var(--surface-2)}
+.console-nav a.is-active{background:#111827;color:#fff}
+.nav-badge{
+  min-width:20px;padding:1px 6px;border-radius:999px;
+  background:#f3f4f6;color:#4b5563;font-size:10px;font-weight:700;text-align:center;
+}
+.console-nav a.is-active .nav-badge{background:rgba(255,255,255,.22);color:#fff}
+/* A grid item defaults to min-width:auto, which lets a wide table push the
+   whole column past the viewport instead of scrolling inside .table-wrap. */
+.console-main{min-width:0}
+.view-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}
+.view-head h2{margin:3px 0 5px;font-size:20px;letter-spacing:-.4px}
+.view-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.7;max-width:62ch}
+.admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.stat-card b{display:block;font-size:25px;letter-spacing:-1px;line-height:1.15}
+.stat-card small{display:block;margin-top:4px;color:var(--muted);font-size:11px}
+.stat-card.is-warn b{color:#b45309}
+.stat-card.is-bad b{color:#b42318}
+.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px 10px}
+.admin-table{width:100%;border-collapse:collapse;font-size:12px}
+.admin-table th{
+  padding:9px 10px;text-align:left;color:var(--muted-2);
+  font-size:10px;font-weight:800;letter-spacing:.08em;
+  border-bottom:1px solid var(--line);white-space:nowrap;
+}
+.admin-table td{padding:10px;border-bottom:1px solid #f1f2f4;vertical-align:top}
+.admin-table tr:last-child td{border-bottom:0}
+.admin-table .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+.admin-table .trunc{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{display:inline-flex;padding:3px 8px;border-radius:999px;background:#f3f4f6;color:#596170;font-size:10px;font-weight:700}
+.pill.ok{background:#f0fdf4;color:#166534}
+.pill.warn{background:#fffbeb;color:#b45309}
+.pill.bad{background:#fff5f5;color:#b42318}
+.row-btn{
+  height:26px;padding:0 9px;border-radius:7px;background:#f3f4f6;color:#4b5563;
+  font-size:10px;font-weight:600;cursor:pointer;
+}
+.row-btn:hover{background:#e5e7eb}
+.row-btn.danger:hover{background:#fee2e2;color:#b42318}
+.admin-empty{padding:24px;text-align:center;color:var(--muted);font-size:12px}
+.filters{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.filters select{
+  height:34px;padding:0 10px;border:1px solid var(--line);border-radius:9px;
+  background:var(--surface);color:#374151;outline:0;font-size:12px;
+}
+.notice{
+  display:flex;flex-direction:column;gap:3px;margin-bottom:16px;padding:12px 15px;
+  border:1px solid var(--line);border-left:3px solid var(--muted-2);border-radius:11px;
+  background:var(--surface);color:#4b5563;font-size:12px;line-height:1.65;
+}
+.notice.warn{border-color:#fde68a;border-left-color:#b45309;background:#fffdf5;color:#7c4a03}
+.notice code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+.login-gate{display:grid;place-items:center;padding:60px 0}
+.login-card{
+  width:min(430px,100%);padding:30px;text-align:center;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+}
+.login-card h2{margin:6px 0 8px;font-size:20px}
+.login-card p{margin:0 0 18px;color:var(--muted);font-size:12px;line-height:1.7}
+.text-input{
+  width:100%;height:42px;padding:0 13px;border:1px solid var(--line);
+  border-radius:10px;background:var(--surface-2);color:var(--text);outline:0;font-size:13px;
+}
+.text-input:focus{border-color:#111827;background:var(--surface)}
+.login-error{min-height:16px;margin:12px 0 0 !important;color:#b42318 !important;font-size:12px}
+.cookie-grid{display:flex;flex-direction:column;gap:10px}
+.cookie-row{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:13px 15px;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+}
+.cookie-row .cookie-name{min-width:104px;font-size:13px;font-weight:600}
+.cookie-row .cookie-meta{flex:1;min-width:180px;color:var(--muted);font-size:11px;line-height:1.6}
+.cookie-row .cookie-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.file-picker{
+  height:32px;display:inline-flex;align-items:center;padding:0 11px;
+  border:1px solid var(--line);border-radius:8px;
+  color:#596170;background:var(--surface-2);font-size:11px;cursor:pointer;
+}
+.file-picker input{display:none}
+.file-picker.has-file{border-color:#111827;color:#111827}
+.admin-msg{min-height:16px;margin:12px 0 0;font-size:12px;color:var(--success)}
+.admin-msg.is-error{color:#b42318}
+.log-box{
+  margin:10px 0 0;padding:12px;max-height:320px;overflow:auto;
+  background:#0f172a;color:#cbd5e1;border-radius:11px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.6;
+  white-space:pre-wrap;word-break:break-all;
+}
+@media (max-width:860px){
+  .console{grid-template-columns:1fr}
+  .console-nav{position:static;flex-direction:row;flex-wrap:wrap}
+  .console-nav .nav-group{display:none}
+}
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M9 4.5H23A2 2 0 0 1 25 6.5V19.6L16 28.4L7 19.6V6.5A2 2 0 0 1 9 4.5ZM12.8 8.8H19.2A1.3 1.3 0 0 1 19.2 11.4H12.8A1.3 1.3 0 0 1 12.8 8.8Z"/></svg></span>
+      <span>
+        <strong>FetchKeep Lite</strong>
+        <small>管理后台</small>
+      </span>
+    </a>
+    <div class="header-right" style="display:flex;align-items:center;gap:10px">
+      <div class="header-status" id="state">加载中…</div>
+      <a class="row-btn" href="/" style="display:inline-flex;align-items:center;text-decoration:none">返回下载页</a>
+      <button class="row-btn danger" id="logout-btn" type="button" hidden>登出</button>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <section class="login-gate" id="gate" hidden>
+    <div class="login-card">
+      <div class="eyebrow">ADMIN</div>
+      <h2>管理后台已加锁</h2>
+      <p>后台用 <code>.env</code> 里的 <code>ADMIN_TOKEN</code> 保护。口令只保存在当前标签页，关掉浏览器即失效。</p>
+      <input class="text-input" id="admin-token" type="password" placeholder="输入 ADMIN_TOKEN" autocomplete="current-password">
+      <button class="primary-btn login-btn" id="token-submit" type="button" style="margin-top:12px;width:100%">
+        <span>进入管理台</span><span class="btn-arrow">→</span>
+      </button>
+      <p class="login-error" id="gate-error"></p>
+    </div>
+  </section>
+
+  <div id="admin-body" hidden>
+    <div id="warnings"></div>
+    <div class="console">
+      <nav class="console-nav" aria-label="管理导航">
+        <div class="nav-group">RUNTIME</div>
+        <a data-view="overview" href="#overview" class="is-active">运行概览</a>
+        <a data-view="jobs" href="#jobs">下载任务<span class="nav-badge" id="badge-jobs" hidden></span></a>
+        <div class="nav-group">CONFIG</div>
+        <a data-view="cookies" href="#cookies">平台 Cookies<span class="nav-badge" id="badge-cookies" hidden></span></a>
+        <a data-view="proxies" href="#proxies">代理出口</a>
+        <a data-view="maintenance" href="#maintenance">存储与清理</a>
+      </nav>
+
+      <div class="console-main">
+        <section class="view" data-view="overview">
+          <div class="view-head">
+            <div>
+              <span class="section-kicker">OVERVIEW</span>
+              <h2>运行概览</h2>
+              <p>下载工具、并发容量与任务分布。排队一直堆着而并发槽满了，就是该加 <code>MAX_WORKERS</code> 的信号。</p>
+            </div>
+            <span class="count-badge" id="refresh-badge">自动刷新</span>
+          </div>
+          <div class="admin-grid" id="overview"></div>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>组件</th><th>状态</th><th>说明</th></tr></thead>
+              <tbody id="components"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" data-view="jobs" hidden>
+          <div class="view-head">
+            <div>
+              <span class="section-kicker">JOBS</span>
+              <h2>下载任务</h2>
+              <p>本进程内的全部任务。任务表在内存里，重启后清空；磁盘上的文件由保留窗口和每日清理管理。</p>
+            </div>
+          </div>
+          <div class="filters">
+            <select id="filter-status">
+              <option value="">全部状态</option>
+              <option value="queued">排队中</option>
+              <option value="downloading">下载中</option>
+              <option value="done">完成</option>
+              <option value="error">失败</option>
+            </select>
+            <button class="row-btn" id="jobs-refresh" type="button">刷新</button>
+          </div>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead><tr>
+                <th>任务</th><th>链接</th><th>状态</th><th>引擎</th>
+                <th>文件</th><th>创建时间</th><th></th>
+              </tr></thead>
+              <tbody id="jobs"></tbody>
+            </table>
+          </div>
+          <pre class="log-box" id="job-log" hidden></pre>
+        </section>
+
+        <section class="view" data-view="cookies" hidden>
+          <div class="view-head">
+            <div>
+              <span class="section-kicker">COOKIES</span>
+              <h2>平台 Cookies</h2>
+              <p>全站共享，影响所有访客的下载。<b>抖音例外</b>：即使公开视频通常也需要 Cookies（不用登录账号），且有效期很短。哔哩哔哩不配也能下，只是封顶 480p。</p>
+            </div>
+            <span class="optional-badge">仅管理员</span>
+          </div>
+          <p class="settings-desc">上传浏览器扩展导出的 Netscape 格式 <code>cookies.txt</code>（不是 JSON）。文件以 600 权限写入服务器的 cookies 目录，立即生效，不需要重启。</p>
+          <div class="cookie-grid" id="cookies"></div>
+          <p class="admin-msg" id="cookie-msg"></p>
+        </section>
+
+        <section class="view" data-view="proxies" hidden>
+          <div class="view-head">
+            <div>
+              <span class="section-kicker">PROXIES</span>
+              <h2>代理出口</h2>
+              <p>只读。代理是进程级配置，改动要编辑 <code>.env</code> 后重启容器。凭据已打码——它是别人服务的密码，没必要能从浏览器标签页里读出来。</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>平台</th><th>状态</th><th>出口</th><th>环境变量</th></tr></thead>
+              <tbody id="proxies"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" data-view="maintenance" hidden>
+          <div class="view-head">
+            <div>
+              <span class="section-kicker">STORAGE</span>
+              <h2>存储与清理</h2>
+              <p>下载目录的占用情况。清理默认每天 00:00 UTC 跑一次，另外每小时按保留窗口清一次；这里可以手动触发。正在下载的任务目录不会被删。</p>
+            </div>
+          </div>
+          <div class="admin-grid" id="storage"></div>
+          <div class="cookie-row">
+            <div class="cookie-name">手动清理</div>
+            <div class="cookie-meta">
+              「按保留窗口」删除超过 <b id="retention-hours">–</b> 小时的任务目录；
+              「全部清空」等同每日清理，删掉所有非运行中的任务。
+            </div>
+            <div class="cookie-actions">
+              <button class="row-btn" id="cleanup-expired" type="button">按保留窗口清理</button>
+              <button class="row-btn danger" id="cleanup-all" type="button">全部清空</button>
+            </div>
+          </div>
+          <p class="admin-msg" id="maintenance-msg"></p>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="admin-footer">
+  <p class="powered-by">
+    Powered by
+    <a href="https://github.com/jinqians/FetchKeep" target="_blank" rel="noopener noreferrer">FetchKeep</a>
+  </p>
+</footer>
+
+<script>
+const TOKEN_KEY = "jq_admin_token";
+// sessionStorage, not localStorage: the console can delete files and upload
+// cookie jars, and a token that outlives the tab is one that outlives the
+// person who typed it on a shared machine.
+const getToken = () => sessionStorage.getItem(TOKEN_KEY) || "";
+const setToken = v => v ? sessionStorage.setItem(TOKEN_KEY, v) : sessionStorage.removeItem(TOKEN_KEY);
+
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function fmtSize(n){
+  if(n === null || n === undefined) return "–";
+  const units = ["B","KB","MB","GB","TB"];
+  let v = n, i = 0;
+  while(v >= 1024 && i < units.length - 1){ v /= 1024; i++; }
+  return (i === 0 || v >= 10 ? Math.round(v) : v.toFixed(1)) + " " + units[i];
+}
+function fmtTime(iso){
+  if(!iso) return "–";
+  const d = new Date(iso);
+  return isNaN(d) ? "–" : d.toLocaleString("zh-CN", {hour12:false});
+}
+function statusPill(status){
+  const map = {queued:["排队中","warn"], downloading:["下载中",""], done:["完成","ok"], error:["失败","bad"]};
+  const [text, cls] = map[status] || [status || "未知", ""];
+  return `<span class="pill ${cls}">${esc(text)}</span>`;
+}
+
+async function api(path, options={}){
+  const headers = Object.assign({"x-admin-token": getToken()}, options.headers || {});
+  const r = await fetch(path, Object.assign({cache:"no-store"}, options, {headers}));
+  if(r.status === 401){
+    setToken("");
+    showGate("口令已失效，请重新输入");
+    throw new Error("unauthorized");
+  }
+  return r;
+}
+async function apiJson(path, options){
+  const r = await api(path, options);
+  const data = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(data.detail || `请求失败 (${r.status})`);
+  return data;
+}
+
+function showGate(message){
+  document.querySelector("#admin-body").hidden = true;
+  document.querySelector("#gate").hidden = false;
+  document.querySelector("#logout-btn").hidden = true;
+  document.querySelector("#state").textContent = "需要口令";
+  document.querySelector("#gate-error").textContent = message || "";
+  if(timer){ clearInterval(timer); timer = null; }
+}
+
+/* ── views ──────────────────────────────────────────────────────────────── */
+const nav = document.querySelectorAll(".console-nav a");
+function showView(name){
+  document.querySelectorAll(".view").forEach(v => { v.hidden = v.dataset.view !== name; });
+  nav.forEach(a => a.classList.toggle("is-active", a.dataset.view === name));
+}
+nav.forEach(a => a.addEventListener("click", () => showView(a.dataset.view)));
+
+/* ── overview ───────────────────────────────────────────────────────────── */
+function renderWarnings(list){
+  document.querySelector("#warnings").innerHTML = (list || []).map(w =>
+    `<div class="notice ${w.level === "warn" ? "warn" : ""}">${esc(w.text)}</div>`
+  ).join("");
+}
+
+async function loadOverview(){
+  const d = await apiJson("/api/admin/overview");
+  const tools = d.tools || {}, jobs = d.jobs || {}, cap = d.capacity || {};
+  const allTools = tools.yt_dlp && tools.gallery_dl && tools.ffmpeg;
+
+  document.querySelector("#state").textContent =
+    (allTools ? "服务正常" : "服务异常") + ` · ${jobs.running || 0} 运行中 · ${jobs.queued || 0} 排队`;
+  document.querySelector("#state").classList.toggle("is-ok", allTools);
+
+  document.querySelector("#overview").innerHTML = [
+    [jobs.total || 0, "任务总数", ""],
+    [jobs.running || 0, `运行中 / ${cap.workers} 并发槽`, jobs.running >= cap.workers ? "is-warn" : ""],
+    [jobs.queued || 0, "排队中", jobs.queued > 0 ? "is-warn" : ""],
+    [(jobs.by_status || {}).error || 0, "失败", ((jobs.by_status||{}).error || 0) > 0 ? "is-bad" : ""],
+    [fmtSize((d.storage || {}).bytes_used), "下载目录占用", ""],
+    [`${cap.retention_hours}h`, "保留窗口", ""],
+  ].map(([value, label, cls]) =>
+    `<div class="stat-card ${cls}"><b>${esc(value)}</b><small>${esc(label)}</small></div>`
+  ).join("");
+
+  const parserNames = (d.parser_chain || []).map(p => p.name).join(" → ") || "—";
+  document.querySelector("#components").innerHTML = [
+    ["yt-dlp", tools.yt_dlp, tools.yt_dlp ? "可用" : "未安装，视频下载不可用"],
+    ["gallery-dl", tools.gallery_dl, tools.gallery_dl ? "可用" : "未安装，图集下载不可用"],
+    ["FFmpeg", tools.ffmpeg, tools.ffmpeg ? "可用" : "未安装，无法合并/转码/生成预览图"],
+    ["抖音解析器", d.has_external_parser, d.has_external_parser
+      ? `解析器链：${parserNames}`
+      : "未配置第三方解析器，抖音/TikTok 走 yt-dlp 原生提取"],
+  ].map(([name, ok, note]) =>
+    `<tr><td><b>${esc(name)}</b></td>
+      <td><span class="pill ${ok ? "ok" : "warn"}">${ok ? "已就绪" : "未配置"}</span></td>
+      <td>${esc(note)}</td></tr>`
+  ).join("");
+
+  renderWarnings(d.warnings);
+  renderStorage(d.storage || {}, cap);
+  document.querySelector("#retention-hours").textContent = cap.retention_hours ?? "–";
+  return d;
+}
+
+function renderStorage(s, cap){
+  document.querySelector("#storage").innerHTML = [
+    [fmtSize(s.bytes_used), "下载目录占用"],
+    [s.job_dirs ?? 0, "任务目录数"],
+    [fmtSize(s.disk_free), "磁盘剩余"],
+    [fmtSize(s.disk_total), "磁盘总量"],
+  ].map(([value, label]) =>
+    `<div class="stat-card"><b>${esc(value)}</b><small>${esc(label)}</small></div>`
+  ).join("");
+}
+
+/* ── jobs ───────────────────────────────────────────────────────────────── */
+async function loadJobs(){
+  const status = document.querySelector("#filter-status").value;
+  const d = await apiJson(`/api/admin/jobs?status=${encodeURIComponent(status)}`);
+  const badge = document.querySelector("#badge-jobs");
+  badge.hidden = !d.total;
+  badge.textContent = d.total;
+
+  const body = document.querySelector("#jobs");
+  if(!d.jobs.length){
+    body.innerHTML = `<tr><td colspan="7"><div class="admin-empty">没有任务</div></td></tr>`;
+    return;
+  }
+  body.innerHTML = d.jobs.map(j => {
+    const flags = [
+      j.proxy_used ? `<span class="pill">代理</span>` : "",
+      j.rate_limited ? `<span class="pill warn">限流</span>` : "",
+      j.auth_required ? `<span class="pill warn">需 Cookies</span>` : "",
+    ].join(" ");
+    const detail = j.status === "error" ? j.error : j.last_line;
+    return `<tr>
+      <td class="mono">${esc(j.id)}</td>
+      <td><div class="trunc" title="${esc(j.url)}">${esc(j.url)}</div>
+          ${detail ? `<div class="trunc" style="color:var(--muted);font-size:11px" title="${esc(detail)}">${esc(detail)}</div>` : ""}</td>
+      <td>${statusPill(j.status)} ${flags}</td>
+      <td>${esc(j.engine || "–")}</td>
+      <td>${j.file_count || 0} 个<br><span style="color:var(--muted);font-size:11px">${esc(fmtSize(j.size))}</span></td>
+      <td style="white-space:nowrap">${esc(fmtTime(j.created_at))}</td>
+      <td style="white-space:nowrap">
+        <button class="row-btn job-log" data-id="${esc(j.id)}" type="button">日志</button>
+        <button class="row-btn danger job-del" data-id="${esc(j.id)}" type="button">删除</button>
+      </td>
+    </tr>`;
+  }).join("");
+
+  body.querySelectorAll(".job-del").forEach(btn => btn.onclick = async () => {
+    if(!confirm(`删除任务 ${btn.dataset.id} 及其全部文件？`)) return;
+    try{ await apiJson(`/api/admin/jobs/${encodeURIComponent(btn.dataset.id)}`, {method:"DELETE"}); }
+    catch(e){ alert(e.message); }
+    loadJobs();
+  });
+  body.querySelectorAll(".job-log").forEach(btn => btn.onclick = async () => {
+    const box = document.querySelector("#job-log");
+    try{
+      const d = await apiJson(`/api/admin/jobs/${encodeURIComponent(btn.dataset.id)}/log`);
+      box.hidden = false;
+      box.textContent = [`$ ${d.command || "(未记录)"}`, "", ...(d.log || [])].join("\n");
+      box.scrollIntoView({behavior:"smooth", block:"nearest"});
+    }catch(e){ alert(e.message); }
+  });
+}
+document.querySelector("#filter-status").onchange = loadJobs;
+document.querySelector("#jobs-refresh").onclick = loadJobs;
+
+/* ── cookies ────────────────────────────────────────────────────────────── */
+const PLATFORM_LABELS = {
+  instagram:"Instagram", tiktok:"TikTok", youtube:"YouTube",
+  douyin:"抖音", bilibili:"哔哩哔哩"
+};
+
+function cookieMsg(text, isError){
+  const el = document.querySelector("#cookie-msg");
+  el.textContent = text;
+  el.classList.toggle("is-error", !!isError);
+}
+
+// 选好的文件存在 DOM 之外。
+//
+// 这一栏每 10 秒被后台轮询重绘一次，重绘会把 <input type=file> 连同它里面已经
+// 选好的文件一起销毁 —— 选完不马上点上传，选择就没了，看起来就是「要点好几次
+// 才成功」。File 对象没法反向塞回 input，所以正确的做法不是重绘后恢复 input，
+// 而是一开始就不依赖它：选择事件把 File 收进这个 Map，上传时从 Map 里取。
+const pendingFiles = new Map();
+// 上一次渲染用的数据。内容没变就不重绘 —— 省掉每 10 秒一次的闪烁，也顺带让
+// 「正在操作这一栏」的常见情况根本碰不到重绘。
+let cookiesSignature = "";
+
+async function loadCookies(){
+  const d = await apiJson("/api/admin/cookies");
+  const configured = d.cookies.filter(c => c.configured).length;
+  const badge = document.querySelector("#badge-cookies");
+  badge.hidden = !configured;
+  badge.textContent = configured;
+
+  const signature = JSON.stringify(d.cookies);
+  if(signature === cookiesSignature && document.querySelector("#cookies").children.length){
+    return;
+  }
+  cookiesSignature = signature;
+
+  document.querySelector("#cookies").innerHTML = d.cookies.map(c => {
+    const label = PLATFORM_LABELS[c.platform] || c.platform;
+    const meta = [];
+    if(c.configured){
+      meta.push(`${fmtSize(c.size)} · 更新于 ${fmtTime(c.updated_at)}`);
+    }else{
+      meta.push("未配置");
+    }
+    if(c.legacy_fallback) meta.push("正在使用旧的通用 cookies.txt 兜底");
+    // 环境变量在每次启动时重新写入文件，这里传上去的会被覆盖掉。
+    if(c.from_env) meta.push(`⚠︎ 由 ${c.env_var} 提供，重启后会覆盖这里上传的文件`);
+    const pending = pendingFiles.get(c.platform);
+    return `<div class="cookie-row">
+      <div class="cookie-name">${esc(label)}
+        <span class="pill ${c.configured ? "ok" : ""}">${c.configured ? "已配置" : "未配置"}</span>
+      </div>
+      <div class="cookie-meta">${meta.map(esc).join("<br>")}</div>
+      <div class="cookie-actions">
+        <label class="file-picker${pending ? " has-file" : ""}" data-platform="${esc(c.platform)}">
+          <input type="file" accept=".txt,text/plain" data-platform="${esc(c.platform)}">
+          <span>${pending ? esc(pending.name) : "选择 cookies.txt"}</span>
+        </label>
+        <button class="row-btn cookie-upload" data-platform="${esc(c.platform)}" type="button">上传</button>
+        ${c.configured ? `<button class="row-btn danger cookie-del" data-platform="${esc(c.platform)}" type="button">删除</button>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll("#cookies input[type=file]").forEach(input => {
+    input.onchange = () => {
+      const platform = input.dataset.platform;
+      const picker = input.closest(".file-picker");
+      const file = input.files[0];
+      if(file) pendingFiles.set(platform, file);
+      else pendingFiles.delete(platform);
+      picker.classList.toggle("has-file", !!file);
+      picker.querySelector("span").textContent = file ? file.name : "选择 cookies.txt";
+      cookieMsg("", false);
+    };
+  });
+  document.querySelectorAll(".cookie-upload").forEach(btn => btn.onclick = async () => {
+    const platform = btn.dataset.platform;
+    const file = pendingFiles.get(platform);
+    if(!file){ cookieMsg("请先选择 cookies.txt", true); return; }
+    const fd = new FormData();
+    fd.append("file", file);
+    btn.disabled = true;
+    try{
+      await apiJson(`/api/admin/cookies/${encodeURIComponent(platform)}`, {method:"POST", body:fd});
+      // 传成功才丢掉。失败时保留，用户可以直接重试而不用重新选一遍文件。
+      pendingFiles.delete(platform);
+      cookieMsg(`${PLATFORM_LABELS[platform] || platform} Cookies 已更新`, false);
+      await loadCookies();
+    }catch(e){ cookieMsg(e.message, true); }
+    finally{ btn.disabled = false; }
+  });
+  document.querySelectorAll(".cookie-del").forEach(btn => btn.onclick = async () => {
+    const platform = btn.dataset.platform;
+    if(!confirm(`删除 ${PLATFORM_LABELS[platform] || platform} 的 Cookies？`)) return;
+    try{
+      await apiJson(`/api/admin/cookies/${encodeURIComponent(platform)}`, {method:"DELETE"});
+      cookieMsg(`${PLATFORM_LABELS[platform] || platform} Cookies 已删除`, false);
+      await loadCookies();
+    }catch(e){ cookieMsg(e.message, true); }
+  });
+}
+
+/* ── proxies ────────────────────────────────────────────────────────────── */
+const PROXY_LABELS = Object.assign({twitter:"X / Twitter"}, PLATFORM_LABELS);
+async function loadProxies(){
+  const d = await apiJson("/api/admin/proxies");
+  document.querySelector("#proxies").innerHTML = d.proxies.map(p =>
+    `<tr>
+      <td><b>${esc(PROXY_LABELS[p.platform] || p.platform)}</b></td>
+      <td><span class="pill ${p.configured ? "ok" : ""}">${p.configured ? "代理出口" : "直连"}</span></td>
+      <td class="mono trunc">${esc(p.value || "—")}</td>
+      <td class="mono">${esc(p.env_var)}</td>
+    </tr>`
+  ).join("");
+}
+
+/* ── maintenance ────────────────────────────────────────────────────────── */
+function maintenanceMsg(text, isError){
+  const el = document.querySelector("#maintenance-msg");
+  el.textContent = text;
+  el.classList.toggle("is-error", !!isError);
+}
+async function runCleanup(scope, label){
+  if(scope === "all" && !confirm("删除所有非运行中的任务目录？已完成任务的文件会立刻消失。")) return;
+  try{
+    const d = await apiJson(`/api/admin/maintenance/cleanup?scope=${scope}`, {method:"POST"});
+    maintenanceMsg(`${label}完成，清理了 ${d.removed} 个任务目录`, false);
+    refresh();
+  }catch(e){ maintenanceMsg(e.message, true); }
+}
+document.querySelector("#cleanup-expired").onclick = () => runCleanup("expired", "按保留窗口清理");
+document.querySelector("#cleanup-all").onclick = () => runCleanup("all", "全部清空");
+
+/* ── boot ───────────────────────────────────────────────────────────────── */
+let timer = null;
+
+async function refresh(){
+  try{
+    await loadOverview();
+    await Promise.all([loadJobs(), loadCookies(), loadProxies()]);
+  }catch(e){
+    if(e.message !== "unauthorized") document.querySelector("#state").textContent = "刷新失败";
+  }
+}
+
+async function enter(){
+  document.querySelector("#gate").hidden = true;
+  document.querySelector("#admin-body").hidden = false;
+  document.querySelector("#logout-btn").hidden = false;
+  await refresh();
+  if(timer) clearInterval(timer);
+  timer = setInterval(refresh, 10000);
+}
+
+document.querySelector("#token-submit").onclick = async () => {
+  const value = document.querySelector("#admin-token").value.trim();
+  if(!value){ document.querySelector("#gate-error").textContent = "请输入口令"; return; }
+  const btn = document.querySelector("#token-submit");
+  btn.disabled = true;
+  document.querySelector("#gate-error").textContent = "验证中…";
+  setToken(value);
+  try{
+    const r = await fetch("/api/admin/ping", {cache:"no-store", headers:{"x-admin-token": value}});
+    if(!r.ok){
+      setToken("");
+      document.querySelector("#gate-error").textContent = "口令不正确";
+      return;
+    }
+    document.querySelector("#admin-token").value = "";
+    document.querySelector("#gate-error").textContent = "";
+    await enter();
+  }catch(_){
+    setToken("");
+    document.querySelector("#gate-error").textContent = "无法连接服务";
+  }finally{ btn.disabled = false; }
+};
+document.querySelector("#admin-token").addEventListener("keydown", e => {
+  if(e.key === "Enter") document.querySelector("#token-submit").click();
+});
+document.querySelector("#logout-btn").onclick = () => {
+  setToken("");
+  location.reload();
+};
+
+(async function boot(){
+  if(!getToken()){ showGate(""); return; }
+  const r = await fetch("/api/admin/ping", {cache:"no-store", headers:{"x-admin-token": getToken()}});
+  if(!r.ok){ setToken(""); showGate("口令已失效，请重新输入"); return; }
+  await enter();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+# 构建多架构镜像并推送到 Docker Hub。
+#
+# 需要在仓库的 Settings → Secrets and variables → Actions 里配两个 secret：
+#
+#   DOCKERHUB_USERNAME   你的 Docker Hub 用户名
+#   DOCKERHUB_TOKEN      Docker Hub → Account Settings → Personal access tokens
+#                        生成的令牌（**不要**用账号密码）
+#
+# 命名空间取自 DOCKERHUB_USERNAME，所以这个文件里没有硬编码的用户名，fork 之后
+# 配上自己的 secret 就能推到自己的命名空间，不用改这个文件。
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    # 只改文档不重新构建镜像 —— 一次多架构构建要跑十几分钟。
+    paths-ignore: ["**.md", "docs/**", ".github/ISSUE_TEMPLATE/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: fetchkeep
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # PR 来自 fork 时拿不到 secret，此时只构建不推送 —— 让 PR 仍然能验证
+      # Dockerfile 没写坏，同时不会把未经审阅的代码推成镜像。
+      - name: 判断是否推送
+        id: mode
+        run: |
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] \
+             && [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::未配置 DOCKERHUB_USERNAME 或这是 PR，本次只构建不推送"
+          fi
+
+      # ARM64 在 x86 runner 上靠 QEMU 模拟构建。
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 登录 Docker Hub
+        if: steps.mode.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 生成标签
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          # latest 只跟版本 tag 走，不跟 main。main 上的提交是 edge：
+          # 让 latest 指向未发布的提交，等于所有 `:latest` 用户替你做测试。
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=edge,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: 构建并推送
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ steps.mode.outputs.push == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 同步 README 到 Docker Hub
+        # 只在发版时同步：Docker Hub 页面描述跟着已发布的版本走，而不是跟着
+        # main 上每一次提交漂移。
+        if: steps.mode.outputs.push == 'true' && startsWith(github.ref, 'refs/tags/v')
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          short-description: "自建的社交媒体下载器：Instagram / X / TikTok / YouTube / 抖音 / 哔哩哔哩"
+          readme-filepath: ./README.md

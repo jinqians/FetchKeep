@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="FetchKeep Lite">
+  <title>FetchKeep Lite</title>
+  <!--
+    The tab icon carries its own tile rather than inheriting the page's.
+    Browser chrome is light in one theme and dark in the other, and a bare
+    dark glyph vanishes into a dark toolbar — the tile keeps the contrast
+    ratio fixed no matter what it is drawn on.
+
+    Glyph geometry is identical to logo.svg, scaled to ~60% of the tile.
+  -->
+  <rect width="32" height="32" rx="8" fill="#111827"/>
+  <g transform="translate(16 16) scale(0.795) translate(-16 -16.45)">
+    <path fill="#ffffff" fill-rule="evenodd" d="
+      M9 4.5 H23 A2 2 0 0 1 25 6.5 V19.6 L16 28.4 L7 19.6 V6.5 A2 2 0 0 1 9 4.5 Z
+      M12.8 8.8 H19.2 A1.3 1.3 0 0 1 19.2 11.4 H12.8 A1.3 1.3 0 0 1 12.8 8.8 Z
+    "/>
+  </g>
+</svg>

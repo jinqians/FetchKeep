@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<title>FetchKeep Lite · 保存 Instagram、X、TikTok、YouTube、抖音、B 站的视频与图片</title>
+<link rel="icon" href="/static/icons/favicon.svg?v=lite8" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icons/favicon.svg?v=lite8">
+<meta name="description" content="粘贴链接即可保存 Instagram、X/Twitter、TikTok、YouTube、抖音、哔哩哔哩的视频与图片。在线预览、按需选择、原画质下载，自建部署，不需要账号。">
+<meta property="og:title" content="FetchKeep Lite · 粘贴链接，保存你想留下的内容">
+<meta property="og:description" content="支持 Instagram、X/Twitter、TikTok、YouTube、抖音与哔哩哔哩。在线预览后再决定下载哪些文件。开源自建，无需登录。">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="/static/css/style.css?v=lite8">
+<link rel="stylesheet" href="/static/css/landing.css?v=lite8">
+<script>
+/* Arms the pre-reveal state before first paint, so the hero animates in rather
+   than rendering, vanishing and animating in. Inline and tiny on purpose: an
+   external file cannot beat the first paint.
+
+   The timeout is the safety net. If motion.js is blocked, cached badly, or
+   throws, nothing would ever reveal the content — so the flag comes back off
+   and the page is simply static. A landing page that animates is nice; a
+   landing page that is blank is not a landing page. */
+(function (d) {
+  var reduced = window.matchMedia
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced || !("IntersectionObserver" in window)) return;
+  d.documentElement.classList.add("motion");
+  setTimeout(function () {
+    if (!d.documentElement.classList.contains("motion-ready")) {
+      d.documentElement.classList.remove("motion");
+    }
+  }, 1500);
+})(document);
+</script>
+<style>
+/* Lite-only: the service status strip — is the machinery that does the
+   downloading actually working. Pro reports this in its admin console; here it
+   is the only place a visitor can tell "the site is broken" apart from "this
+   link is not going to work no matter how many times I retry". */
+.status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:10px}
+.status-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:13px 15px;background:var(--surface);
+  border:1px solid var(--line);border-radius:12px;font-size:13px;
+}
+.status-row b{display:flex;flex-direction:column;gap:3px;min-width:0}
+.status-row b small{
+  color:var(--muted);font-size:11px;font-weight:400;line-height:1.5;
+}
+.status-tags{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0}
+.status-tag{
+  border-radius:999px;padding:2px 9px;font-size:10px;font-weight:700;
+  border:1px solid var(--line);white-space:nowrap;
+}
+.status-tag.on{background:#ecfdf3;color:#067647;border-color:#abefc6}
+.status-tag.off{background:#f3f4f6;color:#8b919a}
+.status-tag.bad{background:#fff5f5;color:#b42318;border-color:#fecdca}
+.status-note{margin:14px 0 0;color:var(--muted);font-size:12px;line-height:1.7}
+.status-note code{
+  background:var(--surface-2);border-radius:5px;padding:2px 6px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M9 4.5H23A2 2 0 0 1 25 6.5V19.6L16 28.4L7 19.6V6.5A2 2 0 0 1 9 4.5ZM12.8 8.8H19.2A1.3 1.3 0 0 1 19.2 11.4H12.8A1.3 1.3 0 0 1 12.8 8.8Z"/></svg></span>
+      <span>
+        <strong>FetchKeep Lite</strong>
+        <small>开源自建版</small>
+      </span>
+    </a>
+    <nav class="top-nav">
+      <a href="#how">使用方法</a>
+      <a href="#status">服务状态</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <div class="header-right">
+      <div class="header-status" id="state">检查服务状态…</div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- 首屏：一句话说清楚 + 立刻能用的粘贴框 -->
+  <section class="hero-band">
+    <div class="hero-inner">
+      <p class="brand-tagline">Fetch it. Keep it.</p>
+      <h1>粘贴链接，保存你想留下的内容</h1>
+      <p class="hero-sub">
+支持 Instagram、X / Twitter、TikTok、YouTube、抖音与哔哩哔哩。先在线预览，再挑出你真正需要的文件——不用装任何软件，也不用注册账号。
+      </p>
+
+      <form id="download-form" class="paste-box">
+        <label class="sr-only" for="url">分享链接</label>
+        <textarea id="url" rows="1" placeholder="把分享链接粘贴到这里…" required></textarea>
+        <button id="submit" class="paste-go" type="submit">
+          <span>开始下载</span><span class="btn-arrow">→</span>
+        </button>
+      </form>
+
+      <div class="paste-meta">
+        <label class="select-wrap">
+          <span>画质</span>
+          <select id="quality">
+            <option value="compat">最佳兼容</option>
+            <option value="best">最高画质</option>
+            <option value="audio">仅音频</option>
+          </select>
+        </label>
+        <button type="button" id="probe" class="link-btn">获取可用画质</button>
+        <label class="select-wrap">
+          <span>引擎</span>
+          <select id="engine">
+            <option value="auto">自动选择</option>
+            <option value="gallery-dl">gallery-dl</option>
+            <option value="yt-dlp">yt-dlp</option>
+          </select>
+        </label>
+      </div>
+      <div id="quality-panel" class="quality-panel" hidden></div>
+
+      <ul class="trust-row">
+        <li>原画质，不二次压缩</li>
+        <li>下载前可预览</li>
+        <li>文件按期自动清理</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 结果区：提交后才出现，避免空页面 -->
+  <section class="results" id="results" hidden>
+    <div class="section-inner">
+      <div class="section-heading">
+        <div><span class="section-kicker">RESULTS</span><h2>下载结果</h2></div>
+        <span class="count-badge" id="task-count">0</span>
+      </div>
+      <div id="jobs"></div>
+    </div>
+  </section>
+
+  <section class="platforms">
+    <div class="section-inner">
+      <div class="platform-list">
+        <span class="platform-chip instagram"><b>Instagram</b><small>图片 · 视频 · Carousel</small></span>
+        <span class="platform-chip twitter"><b>X / Twitter</b><small>图片 · 视频</small></span>
+        <span class="platform-chip tiktok"><b>TikTok</b><small>视频 · 无水印</small></span>
+        <span class="platform-chip youtube"><b>YouTube</b><small>视频 · Shorts · 音频</small></span>
+        <span class="platform-chip douyin"><b>抖音</b><small>视频</small></span>
+        <span class="platform-chip bilibili"><b>哔哩哔哩</b><small>视频 · BV / b23.tv</small></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="how">
+    <div class="section-inner">
+      <div class="section-heading center">
+        <div><span class="section-kicker">HOW IT WORKS</span><h2>三步就好</h2></div>
+      </div>
+      <ol class="steps-grid">
+        <li>
+          <span class="step-num">1</span>
+          <h3>复制链接</h3>
+          <p>在 App 或网页里点「分享 → 复制链接」，短链接也能识别（抖音的 v.douyin.com、B 站的 b23.tv 都行）。</p>
+        </li>
+        <li>
+          <span class="step-num">2</span>
+          <h3>粘贴并解析</h3>
+          <p>贴进上面的输入框。想挑清晰度就先点「获取可用画质」，会列出这条内容真实存在的分辨率和体积。</p>
+        </li>
+        <li>
+          <span class="step-num">3</span>
+          <h3>预览后保存</h3>
+          <p>图片和视频会先在页面里显示出来，勾选你要的再下载，不用整包拿走。</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="band alt" id="status">
+    <div class="section-inner">
+      <div class="section-heading center">
+        <div><span class="section-kicker">STATUS</span><h2>服务状态</h2></div>
+      </div>
+      <div class="status-grid" id="service-status"></div>
+      <p class="status-note">
+        下载失败时先看这里：某个组件不可用，是部署的问题，重试多少次都一样。
+        另外，公开内容通常不需要 Cookies；需要时由服务端统一配置，这个页面不提供
+        上传入口——Cookie 是导出它那个账号的活会话，公开页面能上传就等于公开收集
+        别人的会话。
+      </p>
+    </div>
+  </section>
+
+  <section class="band" id="faq">
+    <div class="section-inner">
+      <div class="section-heading center">
+        <div><span class="section-kicker">FAQ</span><h2>常见问题</h2></div>
+      </div>
+      <div class="faq-list">
+        <details>
+          <summary>下载下来的文件会存多久？</summary>
+          <p>默认保留 24 小时（由部署时的 <code>JOB_RETENTION_HOURS</code> 决定），另外每天 00:00 UTC 会清一次已完成的任务。正在下载的任务不会被清掉。文件是临时的，请及时保存到本地——这里不是网盘。</p>
+        </details>
+        <details>
+          <summary>为什么有些内容提示需要 Cookies？</summary>
+          <p>Instagram、TikTok 和抖音对部分内容要求携带有效的浏览器 Cookies 才肯返回数据，抖音尤其严格——即使是公开视频也常常需要，而且有效期很短。这类提示表示站点在要求验证，不是链接有问题。Cookies 由部署这个站的人在服务端配置，页面上没有上传入口。</p>
+        </details>
+        <details>
+          <summary>抖音总是下载失败怎么办？</summary>
+          <p>yt-dlp 的抖音提取器跟不上平台的签名轮换，隔一阵就整个失效。解决办法是配一个解析器：在 <code>.env</code> 里写 <code>DOUYIN_PARSER_URL</code>（用自带容器的话还要写 <code>COMPOSE_PROFILES=douyin-parser</code>）。配好之后大多数公开视频根本不需要 Cookies。上面「服务状态」里能看到解析器有没有启用。</p>
+        </details>
+        <details>
+          <summary>B 站为什么只有 480p？</summary>
+          <p>哔哩哔哩对匿名访问封顶 480p，这是平台的限制，不是下载器的。要更高画质，需要在服务端配置 B 站的 Cookies（关键是 <code>SESSDATA</code>）。另外 B 站同时提供 H.265 编码，浏览器放不了，所以这里会优先选 AVC/H.264。</p>
+        </details>
+        <details>
+          <summary>YouTube 为什么下不到 4K？</summary>
+          <p>能下。但 YouTube 的 H.264 编码本身最高只到 1080p，1440p 和 4K 只以 VP9 / AV1 提供。选「最佳兼容」时会限制在 AVC/AAC 以保证浏览器能直接预览；想要 4K 请选「最高画质」或用「获取可用画质」挑一个具体分辨率——这类文件在部分浏览器里可能无法在线预览，但下载下来用本地播放器打开没有问题。</p>
+        </details>
+        <details>
+          <summary>提示 429 或 412 是什么意思？</summary>
+          <p>目标站点在限流当前出口 IP，跟链接和 Cookies 都没关系。412 是哔哩哔哩的说法，同一个出口连续请求几次就会触发，隔几分钟自动恢复。等一会儿再试，或者给对应平台配一个代理出口（<code>&lt;平台&gt;_PROXY</code>）。</p>
+        </details>
+        <details>
+          <summary>会保存我下载过什么吗？</summary>
+          <p>不会。任务表只存在内存里，重启即清空；文件按保留窗口自动删除。这是个自建的单机部署，没有账号体系，也没有数据库。</p>
+        </details>
+        <details>
+          <summary>可以用来下载受版权保护的内容吗？</summary>
+          <p>请只下载你自己发布的内容、已获授权的内容，或所在法域允许的合理使用范围内的内容。是否合规由使用者自行负责，也请遵守各平台的服务条款。</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="section-inner footer-inner">
+    <div>
+      <strong>FetchKeep Lite</strong>
+      <span id="footer-source">AGPL-3.0</span>
+    </div>
+    <p class="footer-note">
+      请遵守各平台服务条款与所在地版权法规。文件仅在保留期内暂存于本机，请及时保存到本地。
+    </p>
+  </div>
+  <div class="section-inner">
+    <p class="powered-by">
+      Powered by
+      <a href="https://github.com/jinqians/FetchKeep" target="_blank" rel="noopener noreferrer">FetchKeep</a>
+    </p>
+  </div>
+</footer>
+
+<script src="/static/js/motion.js?v=lite8"></script>
+<script>
+const jobs = new Map();
+const polling = new Set();
+
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function statusText(s){
+  return {queued:"排队中", downloading:"下载中", done:"完成", error:"失败"}[s] || s;
+}
+function fmtSize(n){
+  if(n===null || n===undefined) return "";
+  const units=["B","KB","MB","GB"];
+  let v=n, i=0;
+  while(v>=1024 && i<units.length-1){ v/=1024; i++; }
+  return (i===0 || v>=10 ? Math.round(v) : v.toFixed(1)) + " " + units[i];
+}
+function fileUrl(jobId, path, asDownload){
+  const p = path.split("/").map(encodeURIComponent).join("/");
+  return `/api/jobs/${encodeURIComponent(jobId)}/files/${p}` + (asDownload ? "?download=1" : "");
+}
+// render() rebuilds the job list, so checkbox state has to survive a re-render
+// (transcode polling re-renders while the user is still picking files).
+function snapshotSelection(){
+  const state = new Map();
+  document.querySelectorAll(".file-check").forEach(c=>{
+    state.set(c.dataset.job + "|" + c.value, c.checked);
+  });
+  return state;
+}
+function restoreSelection(state){
+  document.querySelectorAll(".file-check").forEach(c=>{
+    const key = c.dataset.job + "|" + c.value;
+    if(state.has(key)) c.checked = state.get(key);
+  });
+}
+function mediaCard(j, f){
+  const url=fileUrl(j.id, f.path, false);
+  const check=`<input class="file-check" type="checkbox" data-job="${esc(j.id)}" value="${esc(f.path)}" checked>`;
+  const name=`<span class="media-name" title="${esc(f.name)}">${esc(f.name)}</span>`;
+
+  if(f.kind==="image"){
+    return `<div class="media-card">${check}
+      <div class="media-preview toggle-select"><img loading="lazy" src="${url}" alt="${esc(f.name)}"></div>
+      ${name}
+    </div>`;
+  }
+
+  if(f.kind==="audio"){
+    return `<div class="media-card">${check}
+      <div class="media-preview"><audio controls preload="metadata" src="${url}"></audio></div>
+      ${name}
+    </div>`;
+  }
+
+  if(f.kind==="video"){
+    const poster=f.preview ? fileUrl(j.id, f.preview, false) : "";
+    const state=(j.transcodes || {})[f.path] || {};
+    const running=state.status==="running";
+    const warn=f.browser_playable===false
+      ? `<span class="media-warn">${esc((f.vcodec || "该").toUpperCase())} 编码，浏览器可能放不了</span>` : "";
+    const failed=state.status==="error"
+      ? `<span class="media-warn">${esc(state.error || "转码失败")}</span>` : "";
+    const button=`<button class="transcode" data-job="${esc(j.id)}" data-path="${esc(f.path)}"${running ? " disabled" : ""}>${running ? "转码中…" : "转为兼容格式"}</button>`;
+    return `<div class="media-card">${check}
+      <div class="media-preview"><video controls playsinline preload="metadata" poster="${poster}" src="${url}"></video></div>
+      ${name}${warn}${button}${failed}
+    </div>`;
+  }
+
+  return `<label class="file-row">${check}<span>${esc(f.name)}</span></label>`;
+}
+
+function render(){
+  const el=document.querySelector("#jobs");
+  const results=document.querySelector("#results");
+  const count=document.querySelector("#task-count");
+
+  // The results section stays out of the page until there is something in it:
+  // an empty "下载结果" block above the fold is the landing page apologising
+  // for itself.
+  results.hidden = jobs.size === 0;
+  count.textContent = jobs.size;
+  if(!jobs.size){ el.innerHTML=""; return; }
+
+  const selection=snapshotSelection();
+
+  el.innerHTML=[...jobs.values()].reverse().map(j=>{
+    const proxy=j.proxy_used ? '<span class="badge">代理出口</span>' : '<span class="badge">直连</span>';
+    const quality=j.quality && j.quality!=="compat" ? `<span class="badge">${esc(j.quality)}</span>` : "";
+    const multi=j.status==="done" && j.files && j.files.length>1;
+    const action=j.status==="done" && j.files && j.files.length
+      ? `<button class="button select-all" data-id="${esc(j.id)}">全选</button>
+         <button class="button download-selected" data-id="${esc(j.id)}">下载选中</button>
+         ${multi ? `<button class="secondary zip-selected" data-id="${esc(j.id)}">打包 ZIP</button>` : ""}`
+      : "";
+    const remove=`<button class="secondary delete" data-id="${esc(j.id)}">删除</button>`;
+
+    const gallery=(j.status==="done" && j.files && j.files.length)
+      ? `<div class="gallery">${j.files.map(f=>mediaCard(j, f)).join("")}</div>`
+      : "";
+
+    return `<article class="job">
+      <div class="job-title"><b>${esc(statusText(j.status))}</b><span class="badge">${esc(j.engine)}</span>${proxy}${quality}</div>
+      <div class="url">${esc(j.url)}</div>
+      ${j.status==="downloading" ? `<div class="progress"><div></div></div><pre>${esc(j.last_line || "")}</pre>` : ""}
+      ${j.status==="error" ? `<pre class="error">${esc(j.error || "下载失败")}</pre>` : ""}
+      ${gallery}
+      <div class="actions">${action}${remove}</div>
+    </article>`;
+  }).join("");
+
+  restoreSelection(selection);
+  bindJobHandlers();
+}
+
+function checkedPaths(jobId){
+  return [...document.querySelectorAll(`.file-check[data-job="${jobId}"]:checked`)].map(c=>c.value);
+}
+
+// Save each file straight to disk instead of zipping. Browsers ask once for
+// permission to download multiple files, and throttle bursts, hence the gap.
+async function saveFilesDirectly(jobId, paths){
+  for(let i=0;i<paths.length;i++){
+    const a=document.createElement("a");
+    a.href=fileUrl(jobId, paths[i], true);
+    a.download=paths[i].split("/").pop();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if(i<paths.length-1) await new Promise(r=>setTimeout(r,400));
+  }
+}
+
+async function saveFilesAsZip(jobId, paths){
+  const r=await fetch(`/api/jobs/${encodeURIComponent(jobId)}/download-selected`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({files:paths})
+  });
+  if(!r.ok){
+    const data=await r.json().catch(()=>({}));
+    alert(data.detail || "下载失败");
+    return;
+  }
+  const blob=await r.blob();
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=paths.length===1 ? paths[0].split("/").pop() : "selected-download.zip";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+async function startTranscode(btn){
+  const jobId=btn.dataset.job;
+  btn.disabled=true;
+  btn.textContent="转码中…";
+  try{
+    const r=await fetch(`/api/jobs/${encodeURIComponent(jobId)}/transcode`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({path:btn.dataset.path})
+    });
+    if(!r.ok){
+      const data=await r.json().catch(()=>({}));
+      alert(data.detail || "无法开始转码");
+      btn.disabled=false;
+      btn.textContent="转为兼容格式";
+      return;
+    }
+    poll(jobId);
+  }catch(_){
+    btn.disabled=false;
+    btn.textContent="转为兼容格式";
+  }
+}
+
+function bindJobHandlers(){
+  document.querySelectorAll(".delete").forEach(btn=>{
+    btn.onclick=async()=>{
+      await fetch("/api/jobs/"+btn.dataset.id,{method:"DELETE"});
+      jobs.delete(btn.dataset.id);
+      render();
+    };
+  });
+
+  document.querySelectorAll(".select-all").forEach(btn=>{
+    btn.onclick=()=>{
+      document.querySelectorAll(`.file-check[data-job="${btn.dataset.id}"]`).forEach(c=>c.checked=true);
+    };
+  });
+
+  // Images toggle when the thumbnail is clicked. Videos must not, or the click
+  // would never reach the player controls.
+  document.querySelectorAll(".toggle-select").forEach(el=>{
+    el.onclick=()=>{
+      const box=el.parentElement.querySelector(".file-check");
+      if(box) box.checked=!box.checked;
+    };
+  });
+
+  document.querySelectorAll(".download-selected").forEach(btn=>{
+    btn.onclick=async()=>{
+      const selected=checkedPaths(btn.dataset.id);
+      if(!selected.length){ alert("请选择至少一个文件"); return; }
+      btn.disabled=true;
+      try{ await saveFilesDirectly(btn.dataset.id, selected); }
+      finally{ btn.disabled=false; }
+    };
+  });
+
+  document.querySelectorAll(".zip-selected").forEach(btn=>{
+    btn.onclick=async()=>{
+      const selected=checkedPaths(btn.dataset.id);
+      if(!selected.length){ alert("请选择至少一个文件"); return; }
+      btn.disabled=true;
+      try{ await saveFilesAsZip(btn.dataset.id, selected); }
+      finally{ btn.disabled=false; }
+    };
+  });
+
+  document.querySelectorAll(".transcode").forEach(btn=>{
+    btn.onclick=()=>startTranscode(btn);
+  });
+}
+
+async function poll(id){
+  if(polling.has(id)) return;
+  polling.add(id);
+  try{
+    for(;;){
+      const r=await fetch("/api/jobs/"+id);
+      if(!r.ok) return;
+      const j=await r.json();
+      jobs.set(id,j);
+      render();
+      const busy=Object.values(j.transcodes || {}).some(t=>t.status==="running");
+      if(["done","error"].includes(j.status) && !busy) return;
+      await new Promise(res=>setTimeout(res, busy ? 2000 : 1000));
+    }
+  }finally{ polling.delete(id); }
+}
+
+function selectedQuality(){
+  const probed=document.querySelector('input[name="probed-quality"]:checked');
+  return probed ? probed.value : document.querySelector("#quality").value;
+}
+
+function renderQualityOptions(data, panel){
+  if(!data.formats || !data.formats.length){
+    panel.innerHTML='<p class="quality-note">没有解析到可选画质，将使用上方的默认设置。</p>';
+    return;
+  }
+  const title=data.title ? `<div class="quality-title">${esc(data.title)}</div>` : "";
+  const list=data.formats.map((f,i)=>{
+    const codec=f.vcodec ? esc(String(f.vcodec).toUpperCase()) : "M4A";
+    const fps=f.fps && f.fps>=48 ? ` ${Math.round(f.fps)}fps` : "";
+    const warn=f.browser_playable===false ? ' · <span class="quality-warn">需转码</span>' : "";
+    return `<label class="quality-option">
+      <input type="radio" name="probed-quality" value="${esc(f.quality)}"${i===0 ? " checked" : ""}>
+      <b>${esc(f.label)}${fps}</b>
+      <small>${codec}${warn}</small>
+      <span class="quality-size">${f.filesize ? esc(fmtSize(f.filesize)) : "大小未知"}</span>
+    </label>`;
+  }).join("");
+  panel.innerHTML=`${title}<div class="quality-list">${list}</div>
+    <p class="quality-note">选好后点“开始下载”。文件大小为估算值。</p>`;
+}
+
+function resetQualityPanel(){
+  const panel=document.querySelector("#quality-panel");
+  panel.hidden=true;
+  panel.innerHTML="";
+}
+
+document.querySelector("#probe").onclick=async()=>{
+  const url=document.querySelector("#url").value.trim();
+  const panel=document.querySelector("#quality-panel");
+  const btn=document.querySelector("#probe");
+  if(!url){ alert("请先粘贴链接"); return; }
+
+  btn.disabled=true;
+  btn.textContent="查询中…";
+  panel.hidden=false;
+  panel.innerHTML='<p class="quality-note">正在获取可用画质，可能需要几秒…</p>';
+  try{
+    const fd=new FormData();
+    fd.append("url",url);
+    const r=await fetch("/api/probe",{method:"POST",body:fd});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){
+      panel.innerHTML=`<p class="quality-note quality-warn">${esc(data.detail || "获取画质失败")}</p>`;
+      return;
+    }
+    if(!data.supported){
+      panel.innerHTML=`<p class="quality-note">${esc(data.reason || "该链接不支持选择画质")}</p>`;
+      return;
+    }
+    renderQualityOptions(data, panel);
+  }catch(_){
+    panel.innerHTML='<p class="quality-note quality-warn">获取画质失败，请检查服务状态</p>';
+  }finally{
+    btn.disabled=false;
+    btn.textContent="获取可用画质";
+  }
+};
+
+// A probed list belongs to one URL only.
+document.querySelector("#url").addEventListener("input",resetQualityPanel);
+
+document.querySelector("#download-form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const button=document.querySelector("#submit");
+  button.disabled=true;
+  const fd=new FormData();
+  fd.append("url",document.querySelector("#url").value);
+  fd.append("engine",document.querySelector("#engine").value);
+  fd.append("quality",selectedQuality());
+  try{
+    const r=await fetch("/api/jobs",{method:"POST",body:fd});
+    const data=await r.json();
+    if(!r.ok){ alert(data.detail || "创建任务失败"); return; }
+    document.querySelector("#url").value="";
+    resetQualityPanel();
+    jobs.set(data.id,{...data,status:"queued"});
+    render();
+    document.querySelector("#results").scrollIntoView({behavior:"smooth", block:"start"});
+    poll(data.id);
+  }finally{ button.disabled=false; }
+});
+
+// Components, not platforms. What a visitor can act on is "is the thing that
+// does the downloading working" — a per-platform cookie matrix is the operator's
+// business, and it lives in the admin console.
+//
+// `required` separates a fault from a choice: a missing FFmpeg is broken, an
+// unconfigured parser is simply not set up, and colouring both red would train
+// people to ignore the red.
+function serviceRows(health){
+  return [
+    {
+      name: "yt-dlp",
+      ok: health.yt_dlp === true,
+      required: true,
+      note: "视频下载引擎：YouTube、抖音、TikTok、B 站",
+    },
+    {
+      name: "gallery-dl",
+      ok: health.gallery_dl === true,
+      required: true,
+      note: "图集下载引擎：Instagram 图文、X / Twitter",
+    },
+    {
+      name: "FFmpeg",
+      ok: health.ffmpeg === true,
+      required: true,
+      note: "音视频合并、按需转码、生成预览图",
+    },
+    {
+      name: "抖音 / TikTok 解析器",
+      ok: health.has_external_parser === true,
+      required: false,
+      note: health.has_external_parser
+        ? "已启用，抖音走解析器直链，绕开 yt-dlp 的页面提取"
+        : "未配置，抖音/TikTok 走 yt-dlp 原生提取（可能不稳定）",
+    },
+  ];
+}
+
+function renderServiceStatus(health){
+  const box=document.querySelector("#service-status");
+  if(!box) return;
+  box.innerHTML=serviceRows(health).map(row=>{
+    const text=row.ok ? "正常" : (row.required ? "不可用" : "未配置");
+    return `<div class="status-row">
+      <b>${esc(row.name)}<small>${esc(row.note)}</small></b>
+      <span class="status-tags"><span class="status-tag ${row.ok?"on":(row.required?"bad":"off")}">${esc(text)}</span></span>
+    </div>`;
+  }).join("");
+}
+
+// AGPL-3.0 §13: anyone who uses this over a network is entitled to the source
+// of *this* deployment. The link is the licence's own suggested way of offering
+// it, so it is rendered from what the server reports rather than hard-coded —
+// a fork must be able to point at its own repository without touching the page.
+function renderSourceLink(health){
+  const el=document.querySelector("#footer-source");
+  if(!el) return;
+  const url=health.source_url;
+  el.innerHTML=url
+    ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">源码 · AGPL-3.0</a>`
+    : "AGPL-3.0";
+}
+
+async function loadInfo(){
+  const state=document.querySelector("#state");
+  try{
+    const healthRes=await fetch("/api/health",{cache:"no-store"});
+    if(!healthRes.ok) throw new Error("服务接口异常");
+    const health=await healthRes.json();
+
+    state.textContent=health.status==="ok" ? "服务正常" : "服务异常";
+    state.classList.toggle("is-ok",health.status==="ok");
+
+    renderServiceStatus(health);
+    renderSourceLink(health);
+  }catch(err){
+    state.textContent="服务检查失败";
+    state.classList.remove("is-ok");
+  }
+}
+
+loadInfo();
+setInterval(loadInfo, 30000);
+render();
+</script>
+
+</body>
+</html>

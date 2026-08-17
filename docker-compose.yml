@@ -1,0 +1,72 @@
+services:
+  downloader:
+    # 默认从源码构建并打成本地 tag。想用 Docker Hub 上发布的镜像，在 .env 里设
+    #   FETCHKEEP_IMAGE=jinqians/fetchkeep:latest
+    # 然后 docker compose pull && docker compose up -d
+    image: ${FETCHKEEP_IMAGE:-fetchkeep-lite:local}
+    build: .
+    container_name: fetchkeep-lite
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-9080}:9080"
+    environment:
+      # Optional: leave empty to use direct VPS egress.
+      INSTAGRAM_PROXY: "${INSTAGRAM_PROXY:-}"
+      TWITTER_PROXY: "${TWITTER_PROXY:-}"
+      TIKTOK_PROXY: "${TIKTOK_PROXY:-}"
+      YOUTUBE_PROXY: "${YOUTUBE_PROXY:-}"
+      DOUYIN_PROXY: "${DOUYIN_PROXY:-}"
+      BILIBILI_PROXY: "${BILIBILI_PROXY:-}"
+
+      # Cookies are server-side configuration: there is no upload endpoint and
+      # no WebUI for them. Either drop <platform>.txt into the cookies volume,
+      # or inline the jar here (base64 is the practical form for a .env).
+      COOKIE_FILE: "${COOKIE_FILE:-/data/cookies/cookies.txt}"
+      COOKIES_DIR: "${COOKIES_DIR:-/data/cookies}"
+      INSTAGRAM_COOKIES: "${INSTAGRAM_COOKIES:-}"
+      YOUTUBE_COOKIES: "${YOUTUBE_COOKIES:-}"
+      TIKTOK_COOKIES: "${TIKTOK_COOKIES:-}"
+      DOUYIN_COOKIES: "${DOUYIN_COOKIES:-}"
+      BILIBILI_COOKIES: "${BILIBILI_COOKIES:-}"
+
+      # Douyin/TikTok parser chain. Unset ⇒ plain yt-dlp, as before.
+      DOUYIN_PARSER_URL: "${DOUYIN_PARSER_URL:-}"
+      TIKHUB_API_KEY: "${TIKHUB_API_KEY:-}"
+      PARSER_PRIORITY: "${PARSER_PRIORITY:-self_hosted,tikhub}"
+      PARSER_TIMEOUT: "${PARSER_TIMEOUT:-15}"
+
+      # 管理后台口令。不设置则 /admin 与全部 /api/admin/* 返回 404 ——
+      # Lite 是无密码公开部署，一个默认敞开的后台等于对外开放 Cookies 上传。
+      #   openssl rand -base64 24
+      ADMIN_TOKEN: "${ADMIN_TOKEN:-}"
+
+      # AGPL-3.0 §13：通过网络使用本程序的人有权拿到本部署的源码。
+      # 公开部署请指向你自己的仓库（改过代码就更要指向你的 fork）。
+      SOURCE_URL: "${SOURCE_URL:-}"
+
+      MAX_WORKERS: "${MAX_WORKERS:-2}"
+      JOB_RETENTION_HOURS: "${JOB_RETENTION_HOURS:-24}"
+      YTDLP_SOCKET_TIMEOUT: "${YTDLP_SOCKET_TIMEOUT:-30}"
+    volumes:
+      - ./data:/data
+
+  # ------------------------------------------------------------------
+  # 抖音/TikTok 解析器 —— COMPOSE_PROFILES=douyin-parser 打开
+  # ------------------------------------------------------------------
+  # yt-dlp 的抖音 extractor 跟不上平台的 X-Bogus/A_Bogus 签名轮换，隔一阵就整
+  # 个失效。这个容器把解析这一步接管过去：应用先问它要直链，拿到就直接下载，
+  # 拿不到再退回 yt-dlp 自己抓页面（app/parsers.py 里的解析器链）。
+  #
+  # 打开它之后还要在 .env 里写 DOUYIN_PARSER_URL=http://douyin-parser:8000。
+  # 两件事是分开的：地址变量也可以指向别处的实例，那种情况就不需要这个容器。
+  douyin-parser:
+    image: evil0ctal/douyin_tiktok_download_api:latest
+    container_name: douyin-parser
+    profiles: ["douyin-parser"]
+    restart: unless-stopped
+    environment:
+      TZ: "${TZ:-UTC}"
+    # 只对 compose 内网开放。这个服务没有任何鉴权，谁能连上谁就能让它替自己抓
+    # 任意抖音链接 —— 发布到宿主机等于对外开了个公开代理。
+    expose:
+      - "8000"

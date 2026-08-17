@@ -1,0 +1,94 @@
+# 每次改动都验证应用还能起来。
+#
+# 刻意做得很轻：这里不测下载 —— 那要真去请求目标站点，会因为限流、地区限制和
+# 平台反爬更新而随机失败，一个经常无故变红的 CI 比没有 CI 更糟，人会学会无视它。
+# 这里只回答一个问题：改完之后，这个应用还能启动、路由还在、接口还答话吗。
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # 与 Dockerfile 的基础镜像一致
+          cache: pip
+
+      - name: 安装依赖
+        # 只装应用本身需要的，不装 yt-dlp / gallery-dl —— 冒烟测试不下载任何东西，
+        # 而这两个包每天都在发新版，装它们等于把别人的发布节奏接进自己的 CI。
+        run: |
+          python -m pip install --upgrade pip
+          pip install "fastapi>=0.115,<1" "uvicorn[standard]>=0.34,<1" \
+                      "python-multipart>=0.0.20,<1" requests httpx pyflakes
+
+      - name: 静态检查
+        run: python -m pyflakes app/
+
+      - name: 冒烟测试
+        env:
+          DOWNLOAD_ROOT: /tmp/fk/downloads
+          COOKIES_DIR: /tmp/fk/cookies
+          ADMIN_TOKEN: ci-smoke-token-not-a-real-secret
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from app.main import app
+
+          c = TestClient(app)
+
+          # 页面与公开接口
+          assert c.get("/").status_code == 200
+          health = c.get("/api/health")
+          assert health.status_code == 200, health.text
+          body = health.json()
+          for key in ("status", "cookies", "proxies", "parser_chain", "source_url"):
+              assert key in body, f"/api/health 少了 {key}: {sorted(body)}"
+
+          # 输入校验
+          assert c.post("/api/jobs", data={"url": "ftp://x/y"}).status_code == 400
+          assert c.post("/api/jobs", data={"url": "https://x/y",
+                                           "engine": "wget"}).status_code == 400
+
+          # 后台：配了口令才存在，且必须带对口令
+          assert c.get("/admin").status_code == 200
+          assert c.get("/api/admin/overview").status_code == 401
+          auth = {"x-admin-token": "ci-smoke-token-not-a-real-secret"}
+          assert c.get("/api/admin/overview", headers=auth).status_code == 200
+
+          # 公开页面不得出现 Cookies 上传入口
+          page = c.get("/").text
+          assert "/api/cookies" not in page
+          assert 'type="file"' not in page
+
+          print("smoke OK")
+          PY
+
+      - name: 未配置口令时后台必须消失
+        env:
+          DOWNLOAD_ROOT: /tmp/fk2/downloads
+          COOKIES_DIR: /tmp/fk2/cookies
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from app.main import app
+
+          c = TestClient(app)
+          for path in ("/admin", "/api/admin/overview", "/api/admin/cookies"):
+              got = c.get(path).status_code
+              assert got == 404, f"{path} 在未配置 ADMIN_TOKEN 时返回了 {got}"
+          # 带上乱猜的口令也一样
+          assert c.get("/api/admin/overview",
+                       headers={"x-admin-token": "guess"}).status_code == 404
+          print("lockdown OK")
+          PY
