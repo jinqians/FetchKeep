@@ -96,10 +96,11 @@ docker compose up -d --build
 ```
 
 镜像 tag：`latest` 跟着最新的版本发布走，`edge` 跟着 `main` 分支的每次提交走，
-`v1.2.3` / `v1.2` / `v1` 是具体版本。生产环境建议钉死具体版本：
+`1.2.3` / `1.2` / `1` 是具体版本（**镜像 tag 不带 `v` 前缀**，git tag 才带）。
+生产环境建议钉死具体版本：
 
 ```env
-FETCHKEEP_IMAGE=jinqians/fetchkeep:v1.0.0
+FETCHKEEP_IMAGE=jinqians/fetchkeep:1.0.0
 ```
 
 **不用 Compose，只跑一条 `docker run`**（能起来，但代理、Cookies、解析器这些都要
@@ -492,9 +493,10 @@ Lite 是开源自建版，去掉了 Pro 里依赖账号体系和外部服务的�
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-这会产出 `v1.0.0`、`v1.0`、`v1`、`latest` 四个 tag，并把本 README 同步成
-Docker Hub 的仓库描述。`latest` 只跟版本 tag 走，不跟 `main`——让 `latest` 指向
-未发布的提交，等于让所有用 `:latest` 的人替你做测试。
+git tag 带 `v`，产出的镜像 tag 不带——`docker/metadata-action` 的 semver 规则会
+把前缀剥掉。上面这条命令产出 `1.0.0`、`1.0`、`1`、`latest` 四个镜像 tag，并把本
+README 同步成 Docker Hub 的仓库描述。`latest` 只跟版本 tag 走，不跟 `main`——让
+`latest` 指向未发布的提交，等于让所有用 `:latest` 的人替你做测试。
 
 CI 刻意不测真实下载：那要去请求目标站点，会因为限流、地区限制和平台反爬更新而
 随机失败，而一个经常无故变红的 CI 比没有 CI 更糟，人很快就会学会无视它。
