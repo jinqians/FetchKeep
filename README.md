@@ -5,19 +5,7 @@
 [![Docker Hub](https://img.shields.io/docker/pulls/jinqians/fetchkeep.svg)](https://hub.docker.com/r/jinqians/fetchkeep)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
-FetchKeep 的开源自建版：粘贴链接，在线预览，挑出你要的文件再下载。
-
-一个 Docker Compose 就能跑起来的 Web 下载器，没有账号体系，没有数据库，没有
-外部依赖。支持 **Instagram、X / Twitter、TikTok、YouTube、抖音、哔哩哔哩**。
-
-```bash
-git clone https://github.com/jinqians/FetchKeep.git
-cd FetchKeep
-cp .env.example .env
-echo 'FETCHKEEP_IMAGE=jinqians/fetchkeep:latest' >> .env
-docker compose pull && docker compose up -d
-# 打开 http://127.0.0.1:9080
-```
+粘贴链接，在线预览，挑出你要的文件再下载。
 
 ---
 
@@ -25,31 +13,40 @@ docker compose pull && docker compose up -d
 
 - [FetchKeep Lite](#fetchkeep-lite)
   - [目录](#目录)
-  - [它能做什么](#它能做什么)
+  - [项目介绍](#项目介绍)
   - [快速开始](#快速开始)
-  - [配置](#配置)
+    - [方式一：Docker Compose（推荐）](#方式一docker-compose推荐)
+    - [方式二：docker run](#方式二docker-run)
+    - [方式三：从源码构建](#方式三从源码构建)
+    - [验证](#验证)
+    - [升级、重启与卸载](#升级重启与卸载)
+    - [放到公网之前](#放到公网之前)
+  - [配置说明](#配置说明)
     - [代理](#代理)
     - [Cookies](#cookies)
     - [抖音 / TikTok 解析器](#抖音--tiktok-解析器)
+    - [管理后台](#管理后台)
     - [完整环境变量](#完整环境变量)
-  - [管理后台](#管理后台)
-  - [生产部署](#生产部署)
-    - [常用运维命令](#常用运维命令)
-  - [HTTP 接口](#http-接口)
-  - [排查](#排查)
-  - [项目结构](#项目结构)
-  - [和 FetchKeep Pro 的区别](#和-fetchkeep-pro-的区别)
-  - [发布](#发布)
+  - [鸣谢](#鸣谢)
   - [许可证](#许可证)
   - [免责声明](#免责声明)
 
+更多文档：[HTTP 接口](docs/api.md) ·
+[排查](docs/troubleshooting.md) ·
+[版本历史](docs/CHANGELOG.md)
+
 ---
 
-## 它能做什么
+## 项目介绍
+
+FetchKeep Lite 是 FetchKeep 的开源自建版：一个 Docker 就能跑起来的 Web 下载器，
+支持 **Instagram、X / Twitter、TikTok、YouTube、抖音、哔哩哔哩**。
+**建议自行搭建，不公开搭建后的域名**
+
 
 | | |
 | --- | --- |
-| **先看再存** | 图片和视频先在页面里预览，勾选需要的再下载，不用整包拿走 |
+| **先看再存** | 图片和视频先在页面里预览，勾选需要的再下载 |
 | **画质可选** | 「获取可用画质」列出这条内容真实存在的分辨率、编码和大致体积 |
 | **不做无谓转码** | 默认原样保存不重新编码；浏览器确实放不了时才由你手动触发一次 |
 | **双引擎** | 视频走 yt-dlp，图集走 gallery-dl，按链接自动选，失败互相兜底 |
@@ -57,7 +54,7 @@ docker compose pull && docker compose up -d
 | **管理后台** | 可选。运行概览、任务管理、Cookies 上传、手动清理 |
 | **自动清理** | 按保留窗口 + 每日定时，正在下载的任务不会被删 |
 
-平台差异：
+各平台的差异：
 
 | 平台 | 引擎 | 说明 |
 | --- | --- | --- |
@@ -72,21 +69,149 @@ docker compose pull && docker compose up -d
 
 ## 快速开始
 
-**要求**：Docker 与 Docker Compose。镜像自带 yt-dlp、gallery-dl、FFmpeg 和
-Deno（YouTube 提取需要 JS 运行时），支持 **AMD64 / ARM64**。
+**要求**：Docker（Compose 方式还需要 Docker Compose）。镜像自带 yt-dlp、
+gallery-dl、FFmpeg 和 Deno（YouTube 提取需要 JS 运行时），支持
+**AMD64 / ARM64**，不需要在宿主机上装任何东西。
 
-**用发布的镜像**（推荐，不用本地编译，树莓派之类的机器上快很多）：
+镜像发布在 Docker Hub：[`jinqians/fetchkeep`](https://hub.docker.com/r/jinqians/fetchkeep)
+
+
+### 方式一：Docker Compose（推荐）
+
+```bash
+mkdir -p ~/fetchkeep && cd ~/fetchkeep
+nano docker-compose.yml        # 内容见下方
+docker compose up -d
+```
+
+```yaml
+services:
+  downloader:
+    image: jinqians/fetchkeep:1.0.0
+    container_name: fetchkeep-lite
+    restart: unless-stopped
+    ports:
+      # 只监听本机。前面放反代；要直接对外就把 127.0.0.1: 去掉
+      - "127.0.0.1:9080:9080"
+    environment:
+      # AGPL-3.0 §13：公开部署时指向你自己的仓库，见「许可证」
+      SOURCE_URL: "https://github.com/jinqians/FetchKeep"
+      # 留空则 /admin 与全部 /api/admin/* 返回 404
+      ADMIN_TOKEN: ""
+      MAX_WORKERS: "2"
+      JOB_RETENTION_HOURS: "24"
+
+      # 抖音 / TikTok 解析器链。全部留空 ⇒ 行为与纯 yt-dlp 一致，不会出错。
+      # 要用下面那个 douyin-parser 容器，就把这行的注释去掉：
+      # DOUYIN_PARSER_URL: "http://douyin-parser:8000"
+      # TIKHUB_API_KEY: ""                      # 可选的商业 API
+      # PARSER_PRIORITY: "self_hosted,tikhub"   # 默认就是这个顺序
+      # PARSER_TIMEOUT: "15"
+
+      # 代理与 Cookies 按需添加，变量名见「完整环境变量」
+      # BILIBILI_COOKIES: "<base64>"
+      # DOUYIN_PROXY: "socks5://user:password@1.2.3.4:1080"
+    volumes:
+      - ./data:/data
+
+  # 可选：自托管的抖音 / TikTok 解析器。不需要就整段删掉。
+  # 平时不启动，只有 --profile douyin-parser 才会拉起来。
+  douyin-parser:
+    image: evil0ctal/douyin_tiktok_download_api:latest
+    container_name: douyin-parser
+    profiles: ["douyin-parser"]
+    restart: unless-stopped
+    environment:
+      TZ: "UTC"
+    # 只对 compose 内网开放，不要用 ports 映射到宿主机：这个服务没有任何鉴权，
+    # 谁能连上谁就能让它替自己抓任意抖音链接。
+    expose:
+      - "8000"
+```
+
+`./data` 空着就行，不用预先建子目录——应用启动时会自己创建 `downloads/` 和
+`cookies/`。
+
+**克隆仓库来用 Compose 也可以**，好处是能直接用 `.env.example` 里的完整变量注释，
+配置从 `.env` 走而不用改 YAML：
 
 ```bash
 git clone https://github.com/jinqians/FetchKeep.git
 cd FetchKeep
 cp .env.example .env
-echo 'FETCHKEEP_IMAGE=jinqians/fetchkeep:latest' >> .env
+echo 'FETCHKEEP_IMAGE=jinqians/fetchkeep:1.0.0' >> .env
 nano .env                                    # 其余配置全部可选，不改也能跑
 docker compose pull && docker compose up -d
 ```
 
-**从源码构建**（改过代码，或者想自己编译时）：
+仓库里那份 `docker-compose.yml` 带 `build: .`：镜像能正常拉到时不会触发构建，但
+一旦 pull 失败、或者你敲了 `--build`，它就会去找 Dockerfile。不想要这个行为就用
+上面那份自己写的。
+
+**带上抖音解析器一起启动**（可选）：
+
+```bash
+docker compose --profile douyin-parser up -d
+```
+
+**两件事都要做**：起容器（上面这条命令）**和**把地址配给应用
+（`DOUYIN_PARSER_URL=http://douyin-parser:8000`）。只开容器不给地址，应用根本
+不会去用它；只给地址不开容器，则每次解析都连不上再回退 yt-dlp。原理和 TikHub
+的接法见[抖音 / TikTok 解析器](#抖音--tiktok-解析器)。
+
+### 方式二：docker run
+
+不装 Compose 也能跑，代价是每个配置项都要自己加一个 `-e`：
+
+```bash
+docker run -d --name fetchkeep-lite --restart unless-stopped \
+  -p 127.0.0.1:9080:9080 \
+  -v "$PWD/data:/data" \
+  -e SOURCE_URL=https://github.com/jinqians/FetchKeep \
+  -e MAX_WORKERS=2 \
+  -e JOB_RETENTION_HOURS=24 \
+  jinqians/fetchkeep:1.0.0
+```
+
+后台、代理、Cookies 同理，按需追加 `-e`（变量名见[完整环境变量](#完整环境变量)；
+不加就是关闭 / 直连 / 无 Cookies）：
+
+```bash
+  -e ADMIN_TOKEN="$(openssl rand -base64 24)" \
+  -e BILIBILI_PROXY=http://user:password@1.2.3.4:1080 \
+  -e BILIBILI_COOKIES="$(base64 -w0 cookies.txt)" \
+```
+
+**要用抖音解析器，得先自己建一个网络。** Compose 会自动建网络并让容器之间按
+服务名互相解析，`docker run` 不会——默认 bridge 网络不提供 DNS，
+`http://douyin-parser:8000` 根本解析不出来。所以要显式建一个用户自定义网络，
+把两个容器都放进去：
+
+```bash
+docker network create fetchkeep-net
+
+# 解析器：不要加 -p，它没有任何鉴权，只能留在这个私有网络里
+docker run -d --name douyin-parser --restart unless-stopped \
+  --network fetchkeep-net \
+  evil0ctal/douyin_tiktok_download_api:latest
+
+# 主服务：加 --network，并把地址配给它
+docker run -d --name fetchkeep-lite --restart unless-stopped \
+  --network fetchkeep-net \
+  -p 127.0.0.1:9080:9080 \
+  -v "$PWD/data:/data" \
+  -e SOURCE_URL=https://github.com/jinqians/FetchKeep \
+  -e DOUYIN_PARSER_URL=http://douyin-parser:8000 \
+  jinqians/fetchkeep:1.0.0
+```
+
+升级也得手动：`docker pull` 新镜像 → `docker rm -f` 旧容器 → 把上面那串参数
+原样再敲一遍。少抄一个 `-e` 就是一个静默失效的配置，所以长期部署还是建议用
+Compose。
+
+### 方式三：从源码构建
+
+改过代码，或者想自己编译时：
 
 ```bash
 git clone https://github.com/jinqians/FetchKeep.git
@@ -95,24 +220,9 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-镜像 tag：`latest` 跟着最新的版本发布走，`edge` 跟着 `main` 分支的每次提交走，
-`1.2.3` / `1.2` / `1` 是具体版本（**镜像 tag 不带 `v` 前缀**，git tag 才带）。
-生产环境建议钉死具体版本：
+树莓派之类的机器上构建会很慢（要编译依赖、装 Deno），能用发布的镜像就别本地构建。
 
-```env
-FETCHKEEP_IMAGE=jinqians/fetchkeep:1.0.0
-```
-
-**不用 Compose，只跑一条 `docker run`**（能起来，但代理、Cookies、解析器这些都要
-自己一个个加 `-e`，长期部署还是建议用 Compose）：
-
-```bash
-docker run -d --name fetchkeep-lite --restart unless-stopped \
-  -p 127.0.0.1:9080:9080 \
-  -v "$PWD/data:/data" \
-  -e SOURCE_URL=https://github.com/jinqians/FetchKeep \
-  jinqians/fetchkeep:latest
-```
+### 验证
 
 访问 `http://127.0.0.1:9080`。确认服务正常：
 
@@ -122,22 +232,73 @@ curl http://127.0.0.1:9080/api/health
 
 `status` 为 `ok` 表示三个下载工具都就位。首页的「服务状态」一节显示同样的信息。
 
-**带上抖音解析器一起启动**（可选）。除了这条命令，`.env` 里还要写
-`DOUYIN_PARSER_URL=http://douyin-parser:8000`——只开容器不给地址，应用不会去用它。
-见[抖音 / TikTok 解析器](#抖音--tiktok-解析器)：
+### 升级、重启与卸载
 
 ```bash
-docker compose --profile douyin-parser up -d
+# 看日志（跟随输出）
+docker compose logs -f downloader
+
+# 改完配置之后生效
+docker compose up -d
+
+# 升级到最新发布版（用发布镜像时；钉了版本就先改 tag 再执行）
+docker compose pull && docker compose up -d
+
+# 升级（从源码构建时）
+git pull && docker compose up -d --build
+
+# 重启 / 停止
+docker compose restart downloader
+docker compose down
+
+# 卸载：停容器并删掉下载文件和 Cookies。data/ 删掉就没了，先确认
+docker compose down
+rm -rf data/
 ```
+
+升级只换容器，`data/` 是挂载卷不受影响。任务表存在内存里，重启后清空——正在
+下载的任务会中断，磁盘上已经下完的文件还在。
+
+### 放到公网之前
+
+默认监听 `0.0.0.0:9080`。建议前面放 Caddy / Nginx / Cloudflare Tunnel，并把端口
+收到本机：
+
+```yaml
+ports:
+  - "127.0.0.1:9080:9080"
+```
+
+其它注意事项：
+
+- **磁盘**：文件存在 `./data/downloads`，按 `JOB_RETENTION_HOURS` 清理，另外
+  每天 00:00 UTC 全清一次。4K 视频很占地方，留够空间。
+- **抖音解析器容器**只对 compose 内网开放。它没有任何鉴权，发布到宿主机等于
+  对外开了个公开代理。
 
 ---
 
-## 配置
+## 配置说明
 
-全部通过 `.env` 配置，改完重启容器生效：
+**变量名三种部署方式完全一样，只是写法不同**——下面各节
+统一用 `.env` 的写法举例，按你用的方式对照着翻译：
+
+| 部署方式 | 写在哪 | 写法 |
+| --- | --- | --- |
+| 方式一（精简 compose） | `docker-compose.yml` 的 `environment:` | `DOUYIN_PROXY: "socks5://..."` |
+| 方式一（克隆仓库） | 同目录的 `.env` | `DOUYIN_PROXY=socks5://...` |
+| 方式二（docker run） | 命令行 | `-e DOUYIN_PROXY=socks5://...` |
+
+⚠️ **精简 compose 旁边放 `.env` 是不生效的**，而且不会报错。Compose 的 `.env`
+只用来给 compose 文件做变量替换（`${VAR}`），不会自动注入容器；仓库那份 compose
+能读到，是因为它每行都写了 `DOUYIN_PROXY: "${DOUYIN_PROXY:-}"`。精简版是硬编码
+的字面值，所以要改就改 `environment:` 那几行本身。
+
+改完重启容器生效：
 
 ```bash
-docker compose up -d
+docker compose up -d          # 方式一 / 方式三
+docker rm -f fetchkeep-lite   # 方式二：删掉重跑，参数原样再敲一遍
 ```
 
 ### 代理
@@ -231,14 +392,18 @@ URL → 解析器链 → 命中 → 直链下载（失败再用 HTTP 流式下�
 
 **一个都不配时行为与纯 yt-dlp 完全一致**，不会因为没配就出错。
 
-用自带的容器（两句都要写，只写地址容器根本不会启动）：
+用自带的容器要做**两件事**：把容器起起来，再把地址配给应用。只做一件都等于没配。
 
-```env
-COMPOSE_PROFILES=douyin-parser
-DOUYIN_PARSER_URL=http://douyin-parser:8000
-```
+| 部署方式 | 起容器 | 配地址 |
+| --- | --- | --- |
+| 方式一（精简 compose） | `docker compose --profile douyin-parser up -d` | `environment:` 里加 `DOUYIN_PARSER_URL` |
+| 方式一（克隆仓库） | `.env` 里写 `COMPOSE_PROFILES=douyin-parser` | `.env` 里写 `DOUYIN_PARSER_URL` |
+| 方式二（docker run） | 见[方式二](#方式二docker-run)，要先建网络 | `-e DOUYIN_PARSER_URL=...` |
 
-指向别处已有的实例则不需要开 profile。也支持 TikHub.io：
+地址统一是 `http://douyin-parser:8000`——靠 Compose 网络里的服务名解析，所以
+`docker run` 必须自己建用户自定义网络，默认 bridge 解析不出这个名字。
+
+指向别处已有的实例则不需要起容器，填那个实例的地址即可。也支持 TikHub.io：
 
 ```env
 TIKHUB_API_KEY=sk-...
@@ -249,6 +414,37 @@ PARSER_PRIORITY=self_hosted,tikhub    # 可选，默认就是这个顺序
 拒绝，因为这个 URL 是本进程接着要去请求的）；下回来小于 64 KiB 视为失败——
 抖音 CDN 拒绝请求时回的是 HTTP 200 加几百字节 JSON，没有下限那张错误页会被当成
 `.mp4` 存下来并发布出去。
+
+### 管理后台
+
+生成一个口令填进去。**注意别把 `$(openssl ...)` 原样写进 `.env`**——`.env` 不做
+命令替换，那样存进去的会是这串字面文本，而不是随机口令：
+
+```bash
+openssl rand -base64 24        # 把输出填到 ADMIN_TOKEN
+```
+
+```env
+ADMIN_TOKEN=zK3n8Qw1p...
+```
+
+重启后打开 `/admin` 输入口令。
+
+**不设 `ADMIN_TOKEN` 时，`/admin` 和全部 `/api/admin/*` 一律返回 404。**
+这是刻意的：Lite 是无密码公开部署，一个默认敞开的后台就是对外开放的 Cookies
+上传表单。
+
+| 视图 | 内容 |
+| --- | --- |
+| 运行概览 | 工具就绪状态、解析器链、任务分布、并发占用、磁盘占用 |
+| 下载任务 | 全部任务（可按状态过滤）、查看命令与日志、删除任务及文件 |
+| 平台 Cookies | 各平台上传 / 删除 `cookies.txt`，显示大小、更新时间与来源 |
+| 代理出口 | 只读，凭据打码 |
+| 存储与清理 | 磁盘占用，手动触发「按保留窗口」或「全部清空」 |
+
+口令走 `x-admin-token` 请求头（自定义头带不上跨站请求，CSRF 因此不用单独防），
+浏览器端存在 sessionStorage，关掉标签页即失效。猜错只会让下一次回答变慢
+（翻倍，上限 4 秒），不会锁定——锁定的话，反代后面任何人都能把管理员关在门外。
 
 ### 完整环境变量
 
@@ -275,231 +471,27 @@ PARSER_PRIORITY=self_hosted,tikhub    # 可选，默认就是这个顺序
 
 ---
 
-## 管理后台
+## 鸣谢
 
-```env
-ADMIN_TOKEN=$(openssl rand -base64 24)
-```
+这个项目本身只是编排层——真正把文件取下来的是下面这些开源项目：
 
-重启后打开 `/admin` 输入口令。
-
-**不设 `ADMIN_TOKEN` 时，`/admin` 和全部 `/api/admin/*` 一律返回 404。**
-这是刻意的：Lite 是无密码公开部署，一个默认敞开的后台就是对外开放的 Cookies
-上传表单。
-
-| 视图 | 内容 |
-| --- | --- |
-| 运行概览 | 工具就绪状态、解析器链、任务分布、并发占用、磁盘占用 |
-| 下载任务 | 全部任务（可按状态过滤）、查看命令与日志、删除任务及文件 |
-| 平台 Cookies | 各平台上传 / 删除 `cookies.txt`，显示大小、更新时间与来源 |
-| 代理出口 | 只读，凭据打码 |
-| 存储与清理 | 磁盘占用，手动触发「按保留窗口」或「全部清空」 |
-
-口令走 `x-admin-token` 请求头（自定义头带不上跨站请求，CSRF 因此不用单独防），
-浏览器端存在 sessionStorage，关掉标签页即失效。猜错只会让下一次回答变慢
-（翻倍，上限 4 秒），不会锁定——锁定的话，反代后面任何人都能把管理员关在门外。
-
----
-
-## 生产部署
-
-默认监听 `0.0.0.0:9080`。。
-
-建议前面放 Caddy / Nginx / Cloudflare Tunnel，并把 Compose 端口收到本机：
-
-```yaml
-ports:
-  - "127.0.0.1:9080:9080"
-```
-
-其它注意事项：
-
-- **磁盘**：文件存在 `./data/downloads`，按 `JOB_RETENTION_HOURS` 清理，另外
-  每天 00:00 UTC 全清一次。4K 视频很占地方，留够空间。
-
-- **抖音解析器容器**只对 compose 内网开放。它没有任何鉴权，发布到宿主机等于
-  对外开了个公开代理。
-
-### 常用运维命令
-
-```bash
-# 看日志（跟随输出）
-docker compose logs -f downloader
-
-# 改完 .env 之后生效
-docker compose up -d
-
-# 升级到最新发布版（用发布镜像时）
-docker compose pull && docker compose up -d
-
-# 升级（从源码构建时）
-git pull && docker compose up -d --build
-
-# 重启 / 停止
-docker compose restart downloader
-docker compose down
-
-# 卸载：停容器并删掉下载文件和 Cookies。data/ 删掉就没了，先确认
-docker compose down
-rm -rf data/
-```
-
-升级只换容器，`data/` 是挂载卷不受影响。任务表存在内存里，重启后清空——正在
-下载的任务会中断，磁盘上已经下完的文件还在。
-
----
-
-## HTTP 接口
-
-公开接口：
-
-| 方法 | 路径 | 说明 |
+| 项目 | 在这里做什么 | 许可证 |
 | --- | --- | --- |
-| `GET` | `/api/health` | 工具与配置状态 |
-| `GET` | `/api/info` | 同上（别名） |
-| `POST` | `/api/probe` | 探测可用画质，表单字段 `url` |
-| `POST` | `/api/jobs` | 建任务，表单字段 `url` `engine` `quality` |
-| `GET` | `/api/jobs/{id}` | 任务状态与文件列表 |
-| `GET` | `/api/jobs/{id}/files` | 只要文件列表 |
-| `GET` | `/api/jobs/{id}/files/{path}` | 取单个文件，`?download=1` 触发下载 |
-| `GET` | `/api/jobs/{id}/download` | 单文件任务的直接下载（多文件任务返回 400） |
-| `POST` | `/api/jobs/{id}/download-selected` | 打包选中文件为 ZIP |
-| `POST` | `/api/jobs/{id}/transcode` | 转 H.264/AAC，JSON `{"path": "..."}` |
-| `DELETE` | `/api/jobs/{id}` | 删除任务及文件 |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | 视频引擎：提取、选流、下载 | Unlicense |
+| [gallery-dl](https://github.com/mikf/gallery-dl) | 图集引擎：Instagram `/p/`、X / Twitter | GPL-2.0 |
+| [FFmpeg](https://ffmpeg.org/) | DASH 合并、转码、抽预览图、编解码探测 | LGPL-2.1+ / GPL-2+ |
+| [Deno](https://github.com/denoland/deno) | YouTube 提取所需的 JS 运行时 | MIT |
+| [yt-dlp/ejs](https://github.com/yt-dlp/ejs) | 配合 Deno 求解 YouTube 的 JS 挑战 | Unlicense |
+| [FastAPI](https://github.com/fastapi/fastapi) | Web 框架 | MIT |
+| [Uvicorn](https://github.com/encode/uvicorn) | ASGI 服务器 | BSD-3-Clause |
+| [curl-cffi](https://github.com/lexiforest/curl_cffi) | TLS 指纹模拟，绕过部分站点的客户端识别 | MIT |
+| [Requests](https://github.com/psf/requests) | HTTP 客户端 | Apache-2.0 |
+| [python-multipart](https://github.com/Kludex/python-multipart) | 表单解析 | Apache-2.0 |
+| [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API) | 可选的自托管抖音 / TikTok 解析器容器 | Apache-2.0 |
 
-管理接口（全部需要 `x-admin-token` 头，未配置口令时返回 404）：
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| `GET` | `/api/admin/overview` | 运行概览 |
-| `GET` | `/api/admin/jobs` | 任务列表，`?status=` 过滤 |
-| `GET` | `/api/admin/jobs/{id}/log` | 该任务的命令与输出 |
-| `DELETE` | `/api/admin/jobs/{id}` | 删除任务 |
-| `GET` | `/api/admin/cookies` | 各平台 Cookies 状态 |
-| `POST` | `/api/admin/cookies/{platform}` | 上传 cookies.txt |
-| `DELETE` | `/api/admin/cookies/{platform}` | 删除 |
-| `GET` | `/api/admin/proxies` | 代理配置（凭据打码） |
-| `POST` | `/api/admin/maintenance/cleanup` | 手动清理，`?scope=expired\|all` |
-
-`quality` 取值：`compat`（默认，AVC/AAC，浏览器可直接预览）、`best`、`audio`，
-或具体高度如 `1080`。
-
-```bash
-curl -X POST http://127.0.0.1:9080/api/jobs \
-  -F 'url=https://www.bilibili.com/video/BV1GJ411x7h7' \
-  -F 'quality=1080'
-```
-
----
-
-## 排查
-
-**先看首页的「服务状态」**：某个组件不可用是部署问题，重试多少次都一样。
-
-| 现象 | 原因与处理 |
-| --- | --- |
-| 提示 **429 / 412** | 站点在限流当前出口 IP，跟链接和 Cookies 无关。412 是 B 站的说法，隔几分钟自动恢复。等一会儿，或给该平台配代理 |
-| 提示**需要 Cookies** | 站点要求验证，按 [Cookies](#cookies) 配置。抖音先检查解析器 |
-| **抖音总是失败** | 配 `DOUYIN_PARSER_URL`。查日志：`docker compose logs --tail=50 downloader \| grep '\[parser\]'` |
-| **B 站只有 480p** | 平台对匿名访问的限制，需要配 B 站 Cookies（关键是 `SESSDATA`） |
-| **视频不能在线预览** | 编码不是浏览器能放的（HEVC/AV1）。文件本身没问题，点「转为兼容格式」或用本地播放器 |
-| **YouTube 下不到 4K** | 选「最高画质」或具体分辨率。H.264 本身只到 1080p |
-| **服务异常** | `docker compose logs downloader`，检查 yt-dlp / gallery-dl / FFmpeg |
-
-查看容器内实际生效的环境变量：
-
-```bash
-docker exec fetchkeep-lite env | grep PROXY
-```
-
-单独用 yt-dlp 验证一条链接，判断是站点问题还是本服务的问题：
-
-```bash
-docker exec -it fetchkeep-lite yt-dlp --proxy 'socks5://...' 'https://...'
-```
-
----
-
-## 项目结构
-
-```text
-app/
-  main.py         应用装配：FastAPI 实例、静态资源、路由、后台任务
-  config.py       环境变量、路径、常量
-  platform.py     平台识别（URL → 平台）、引擎选择
-  cookies.py      Cookie 解析与服务端配置（含环境变量注入）
-  proxy.py        各平台代理参数
-  quality.py      画质解析、yt-dlp 参数构造、远端画质探测
-  media.py        编解码探测、remux、转码、预览图、文件收集
-  parsers.py      抖音 / TikTok 解析器链
-  downloader.py   下载编排：引擎选择、回退、错误归类
-  jobs.py         内存任务表与线程池
-  cleanup.py      定时清理
-  auth.py         管理后台鉴权
-  routes/         HTTP 接口，按职责拆分
-static/           首页、样式、图标
-templates/        管理后台页面（不在 /static 下：没配口令时连页面外壳都拿不到）
-data/             下载文件与 Cookies（挂载卷）
-docs/CHANGELOG.md 版本历史
-```
-
-任务表只存在内存里，重启即清空；磁盘上的文件由保留窗口和定时清理管理。
-
----
-
-## 和 FetchKeep Pro 的区别
-
-Lite 是开源自建版，去掉了 Pro 里依赖账号体系和外部服务的部分：
-
-| | Lite | Pro |
-| --- | --- | --- |
-| 账号 / 登录 | 无 | OIDC，套餐分级 |
-| 任务存储 | 内存 | PostgreSQL |
-| 代理 | 每平台一条，环境变量 | 代理池，自动故障转移、冷却、VPN Gate |
-| 对象存储 | 无（本地磁盘） | S3 / R2 归档 |
-| 订阅关注 | 无 | 关注账号自动下载 + 推送 |
-| Telegram 机器人 | 无 | 有 |
-| 后台 | 单口令 | 身份体系 + 用户 / 兑换码管理 |
-
-下载能力本身（引擎、画质、解析器链、平台支持）两边一致。
-
----
-
-## 发布
-
-推送到 GitHub 后，`.github/workflows/` 里两个工作流会自动跑：
-
-| 工作流 | 触发 | 做什么 |
-| --- | --- | --- |
-| `ci.yml` | 每次 push / PR | pyflakes + 冒烟测试（应用能起来、路由在、后台在没口令时确实是 404） |
-| `docker-publish.yml` | push 到 main、打 `v*` tag | 构建 AMD64 + ARM64 镜像推到 Docker Hub |
-
-**推镜像前要配两个 secret**（仓库 Settings → Secrets and variables → Actions）：
-
-| Secret | 取值 |
-| --- | --- |
-| `DOCKERHUB_USERNAME` | Docker Hub 用户名 |
-| `DOCKERHUB_TOKEN` | Docker Hub → Account Settings → Personal access tokens 生成的令牌，**不要用账号密码** |
-
-命名空间从 `DOCKERHUB_USERNAME` 取，仓库名是 `docker-publish.yml` 里的
-`IMAGE_NAME`（`fetchkeep`），合起来是 `jinqians/fetchkeep`——fork 之后只要配上
-自己的 secret 就能推到自己的命名空间，不用改工作流。没配 secret 时工作流只构建
-不推送，PR 也是如此（fork 来的 PR 拿不到 secret，这样既能验证 Dockerfile 没写坏，
-又不会把未经审阅的代码推成镜像）。
-
-发一个版本：
-
-```bash
-git tag v1.0.0 && git push origin v1.0.0
-```
-
-git tag 带 `v`，产出的镜像 tag 不带——`docker/metadata-action` 的 semver 规则会
-把前缀剥掉。上面这条命令产出 `1.0.0`、`1.0`、`1`、`latest` 四个镜像 tag，并把本
-README 同步成 Docker Hub 的仓库描述。`latest` 只跟版本 tag 走，不跟 `main`——让
-`latest` 指向未发布的提交，等于让所有用 `:latest` 的人替你做测试。
-
-CI 刻意不测真实下载：那要去请求目标站点，会因为限流、地区限制和平台反爬更新而
-随机失败，而一个经常无故变红的 CI 比没有 CI 更糟，人很快就会学会无视它。
+平台反爬每隔一阵就会更新一轮，这些项目的维护者在持续跟进——本项目能用，几乎
+全靠他们。遇到某个平台下不动，先 `docker compose pull` 拉个新镜像，多数情况是
+上游已经修好了。
 
 ---
 
